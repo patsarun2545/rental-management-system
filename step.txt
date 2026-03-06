@@ -1,0 +1,204 @@
+ลำดับการสร้าง Controller
+Phase 1 — Foundation (ไม่มี dependencies)
+
+auth.controller.js — User/Register/Login
+user.controller.js — CRUD User
+address.controller.js — ขึ้นกับ User
+audit.controller.js — AuditLog (standalone)
+
+Phase 2 — Product System
+
+category.controller.js — Category (ไม่มี dependency)
+type.controller.js — ขึ้นกับ Category
+product.controller.js — ขึ้นกับ Category + Type
+productImage.controller.js — ขึ้นกับ Product
+variant.controller.js — ขึ้นกับ Product + Size + Color
+
+Phase 3 — Cart & Wishlist
+
+cart.controller.js — ขึ้นกับ User + ProductVariant
+wishlist.controller.js — ขึ้นกับ User + Product
+
+Phase 4 — Rental System
+
+promotion.controller.js — ใช้ใน Rental
+rental.controller.js — ขึ้นกับ User + Promotion
+rentalItem.controller.js — ขึ้นกับ Rental + ProductVariant
+
+Phase 5 — Payment & Admin
+
+payment.controller.js — ขึ้นกับ Rental
+admin.controller.js — จัดการภาพรวม (ต้องมีทุกอย่างก่อน)
+
+1. Auth
+
+Login
+
+(optional) Register Admin
+
+👉 ใช้กับ auth.controller.js
+
+🏠 2. Dashboard
+
+สรุป:
+
+ยอดเช่า
+
+รายได้
+
+จำนวนสินค้า
+
+ลูกค้า
+
+กราฟรายวัน/รายเดือน
+
+👤 3. User Management
+
+รายการผู้ใช้
+
+เปลี่ยน role (admin / user)
+
+เปิด/ปิดบัญชี
+
+👉 user.controller.js
+
+📦 4. Product Management (สำคัญสุด)
+4.1 Product List
+
+ตารางสินค้า
+
+search / filter / pagination
+
+toggle status (ACTIVE / INACTIVE)
+
+4.2 Create / Edit Product
+
+name, description, brand, price
+
+category
+
+type
+
+👉 product.controller.js
+
+4.3 Variant Management
+
+เพิ่ม size / color / stock / sku
+
+edit / delete
+
+👉 variant.controller.js
+
+4.4 Product Image
+
+upload รูป
+
+ตั้งรูปหลัก
+
+ลบรูป
+
+👉 productImage.controller.js
+
+🗂️ 5. Category & Type
+Category Page
+
+เพิ่ม / แก้ไข / ลบ
+
+Type Page
+
+ผูกกับ category
+
+👉 category.controller.js, type.controller.js
+
+🎟️ 6. Promotion
+
+สร้างโปรโมชั่น
+
+ส่วนลด %
+
+วันเริ่ม / วันหมด
+
+👉 promotion.controller.js
+
+🛒 7. Order / Rental (หัวใจระบบเช่า)
+7.1 Rental List
+
+ดูรายการเช่าทั้งหมด
+
+filter status
+
+7.2 Rental Detail
+
+รายการสินค้า
+
+วันที่เช่า / คืน
+
+สถานะ:
+
+pending
+
+rented
+
+returned
+
+late
+
+👉 rental.controller.js, rentalItem.controller.js
+
+💳 8. Payment
+
+รายการชำระเงิน
+
+อนุมัติ / ปฏิเสธ
+
+ดู slip
+
+👉 payment.controller.js
+
+🔁 9. Return System
+
+รับคืนสินค้า
+
+เช็คเสียหาย
+
+คิดค่าปรับ
+
+👉 return.controller.js
+
+🧾 10. Invoice
+
+ดูใบเสร็จ
+
+export (optional)
+
+👉 invoice.controller.js
+
+📍 11. Address
+
+ดู address user
+
+👉 address.controller.js
+
+❤️ 12. Wishlist (optional แต่มี controller)
+
+ดูสินค้าที่ user กดถูกใจ
+
+👉 wishlist.controller.js
+
+🛍️ 13. Cart (optional admin debug)
+
+ดู cart user
+
+👉 cart.controller.js
+
+📊 14. Audit Log (โคตรโปร 🔥)
+
+ดูว่า admin คนไหนทำอะไร
+
+เช่น:
+
+ลบสินค้า
+
+แก้ราคา
+
+👉 audit.controller.js

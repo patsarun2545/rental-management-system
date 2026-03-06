@@ -1,0 +1,420 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////
+// USER & ROLE
+//////////////////////
+
+model User {
+  id       Int     @id @default(autoincrement())
+  email    String  @unique
+  password String
+  name     String
+  phone    String?
+  role     Role    @default(USER)
+
+  rentals        Rental[]  @relation("UserRentals")
+  handledRentals Rental[]  @relation("HandledByAdmin")
+  cart           Cart?
+  wishlist       Wishlist[]
+  addresses      Address[]
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+//////////////////////
+// ADDRESS
+//////////////////////
+
+model Address {
+  id      Int    @id @default(autoincrement())
+  userId  Int
+  address String
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+//////////////////////
+// PRODUCT SYSTEM
+//////////////////////
+
+model Product {
+  id          Int           @id @default(autoincrement())
+  name        String
+  description String?
+  brand       String?
+  price       Float?
+  status      ProductStatus @default(ACTIVE)
+
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  categoryId Int
+  typeId     Int
+
+  category Category @relation(fields: [categoryId], references: [id])
+  type     Type     @relation(fields: [typeId], references: [id])
+
+  variants ProductVariant[]
+  images   ProductImage[]
+  wishlist Wishlist[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([typeId])
+  @@index([name])
+}
+
+enum ProductStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Category {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  products Product[]
+  types    Type[]
+}
+
+model Type {
+  id         Int    @id @default(autoincrement())
+  name       String
+  categoryId Int
+
+  category Category  @relation(fields: [categoryId], references: [id])
+  products Product[]
+
+  @@unique([name, categoryId])
+  @@index([categoryId])
+}
+
+model Size {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  variants ProductVariant[]
+}
+
+model Color {
+  id   Int     @id @default(autoincrement())
+  name String  @unique
+  hex  String?
+
+  variants ProductVariant[]
+}
+
+model ProductVariant {
+  id        Int @id @default(autoincrement())
+  productId Int
+  sizeId    Int
+  colorId   Int
+
+  price Float
+  stock Int
+  sku   String @unique
+
+  product Product @relation(fields: [productId], references: [id])
+  size    Size    @relation(fields: [sizeId], references: [id])
+  color   Color   @relation(fields: [colorId], references: [id])
+
+  rentalItems  RentalItem[]
+  cartItems    CartItem[]
+  reservations StockReservation[]
+
+  @@unique([productId, sizeId, colorId])
+  @@index([productId])
+}
+
+model ProductImage {
+  id        Int     @id @default(autoincrement())
+  productId Int
+  imageUrl  String
+  isMain    Boolean @default(false)
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}
+
+//////////////////////
+// RENTAL SYSTEM
+//////////////////////
+
+model Rental {
+  id   Int    @id @default(autoincrement())
+  code String @unique
+
+  userId    Int
+  handledBy Int?
+
+  startDate DateTime
+  endDate   DateTime
+
+  pickupDate DateTime?
+  returnDate DateTime?
+
+  status        RentalStatus  @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+
+  totalPrice    Float
+  depositAmount Float?
+  lateFeePerDay Float  @default(0)
+
+  promotionId Int?
+
+  user      User       @relation("UserRentals", fields: [userId], references: [id])
+  handler   User?      @relation("HandledByAdmin", fields: [handledBy], references: [id])
+  promotion Promotion? @relation(fields: [promotionId], references: [id])
+
+  items     RentalItem[]
+  payments  Payment[]
+  invoice   Invoice?
+  deposit   Deposit?
+  penalties Penalty[]
+  returnLog ReturnLog?
+
+  createdAt         DateTime           @default(now())
+  stockReservations StockReservation[]
+
+  @@index([userId])
+}
+
+enum RentalStatus {
+  PENDING
+  CONFIRMED
+  ACTIVE
+  RETURNED
+  LATE
+  CANCELLED
+  COMPLETED
+}
+
+//////////////////////
+// RENTAL ITEM
+//////////////////////
+
+model RentalItem {
+  id               Int @id @default(autoincrement())
+  rentalId         Int
+  productVariantId Int
+  quantity         Int
+
+  rental  Rental         @relation(fields: [rentalId], references: [id])
+  variant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([rentalId])
+}
+
+//////////////////////
+// PAYMENT
+//////////////////////
+
+model Payment {
+  id       Int @id @default(autoincrement())
+  rentalId Int
+
+  amount   Float
+  imageUrl String?
+  type     PaymentType
+
+  status    PaymentStatus @default(PENDING)
+  createdAt DateTime      @default(now())
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PaymentType {
+  RENTAL
+  DEPOSIT
+  PENALTY
+}
+
+//////////////////////
+// INVOICE
+//////////////////////
+
+model Invoice {
+  id        Int    @id @default(autoincrement())
+  rentalId  Int    @unique
+  invoiceNo String @unique
+
+  total     Float
+  createdAt DateTime @default(now())
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+}
+
+//////////////////////
+// DEPOSIT
+//////////////////////
+
+model Deposit {
+  id       Int @id @default(autoincrement())
+  rentalId Int @unique
+
+  amount Float
+  status DepositStatus @default(HELD)
+
+  refundedAmount Float?
+  createdAt      DateTime @default(now())
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+}
+
+enum DepositStatus {
+  HELD
+  REFUNDED
+  DEDUCTED
+}
+
+//////////////////////
+// PENALTY
+//////////////////////
+
+model Penalty {
+  id       Int @id @default(autoincrement())
+  rentalId Int
+
+  type   PenaltyType
+  amount Float
+  note   String?
+
+  createdAt DateTime @default(now())
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+}
+
+enum PenaltyType {
+  LATE
+  DAMAGE
+  LOST
+}
+
+//////////////////////
+// RETURN LOG
+//////////////////////
+
+model ReturnLog {
+  id       Int @id @default(autoincrement())
+  rentalId Int @unique
+
+  returnedAt DateTime
+  condition  ReturnCondition
+  note       String?
+
+  rental Rental @relation(fields: [rentalId], references: [id])
+}
+
+enum ReturnCondition {
+  GOOD
+  DAMAGED
+  LOST
+}
+
+//////////////////////
+// STOCK RESERVATION
+//////////////////////
+
+model StockReservation {
+  id               Int @id @default(autoincrement())
+  productVariantId Int
+
+  startDate DateTime
+  endDate   DateTime
+
+  rentalId Int?
+
+  variant ProductVariant @relation(fields: [productVariantId], references: [id])
+  rental  Rental?        @relation(fields: [rentalId], references: [id])
+
+  @@index([productVariantId, startDate, endDate])
+  @@index([rentalId])
+}
+
+//////////////////////
+// CART & WISHLIST
+//////////////////////
+
+model Cart {
+  id     Int @id @default(autoincrement())
+  userId Int @unique
+
+  user  User       @relation(fields: [userId], references: [id])
+  items CartItem[]
+}
+
+model CartItem {
+  id               Int @id @default(autoincrement())
+  cartId           Int
+  productVariantId Int
+  quantity         Int
+
+  cart    Cart           @relation(fields: [cartId], references: [id])
+  variant ProductVariant @relation(fields: [productVariantId], references: [id])
+
+  @@index([cartId])
+}
+
+model Wishlist {
+  id        Int @id @default(autoincrement())
+  userId    Int
+  productId Int
+
+  user    User    @relation(fields: [userId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+}
+
+//////////////////////
+// PROMOTION
+//////////////////////
+
+model Promotion {
+  id        Int      @id @default(autoincrement())
+  name      String
+  discount  Float
+  startDate DateTime
+  endDate   DateTime
+
+  rentals Rental[]
+}
+
+//////////////////////
+// AUDIT LOG
+//////////////////////
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  userId    Int?
+  createdAt DateTime @default(now())
+}

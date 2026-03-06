@@ -1,0 +1,52 @@
+fontend
+npm create vite@latest my-app
+cd my-app
+npm install react-router-dom
+npm i axios sweetalert2
+npm run dev
+
+backend
+npm init -y
+npm i express cors dotenv jsonwebtoken express-fileupload cookie-parser bcryptjs
+npm install multer
+npm i -D typescript ts-node nodemon @types/node @types/express @types/cors @types/jsonwebtoken  @types/bcryptjs
+npx tsc --init
+npm i -D prisma@^6
+npm i @prisma/client@^6
+npx prisma init --datasource-provider postgresql
+แก้ env และเพิ่ม schema.prisma
+npx prisma migrate dev
+แก้ provider = "prisma-client-js"
+ปิด output   = "../generated/prisma" 
+แล้ว npx prisma migrate dev 
+node --watch server.js
+
+npx prisma generate
+npx prisma studio
+npx prisma migrate reset
+npx prisma migrate dev 
+
+
+test
+https://www.npmjs.com/package/jest สร้างชุดทดสอบโปรแกรม (แนะนำ)
+https://www.npmjs.com/package/vitest สร้างชุดทดสอบโปรแกรม (มาใหม่และน่าสนใจ)
+https://www.npmjs.com/package/mocha สร้างชุดทดสอบโปรแกรม (แบบใช้พื้นฐาน)
+https://www.npmjs.com/package/supertest สร้างชุดทดสอบโปรแกรม (สำหรับ Backend)
+https://www.npmjs.com/package/cypress สร้างชุดทดสอบโปรแกรม (สำหรับ Frontend)
+
+npm install --save-dev jest supertest
+สร้าง tests/
+       └── user.test.js
+
+//วิธีเพิ่มไโฟร์เดอร์หลายๆตัว เข้าไปใน โฟร์เดอร์ ที่จะเพิ่มก่อน
+mkdir components context hooks layouts pages services utils
+
+//วิธีเพิ่มไฟล์หลายๆตัว เข้าไปใน โฟร์เดอร์ ที่จะเพิ่มก่อน
+touch product.routes.js category.routes.js productImage.routes.js type.routes.js 
+
+ชื่อ	          รูปแบบ
+✅ Component  → PascalCase
+✅ Layout     → PascalCase + Layout
+✅ Page       → PascalCase + Page
+✅ Props      → camelCase
+✅ Path	     → kebab-case
