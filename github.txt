@@ -1,3 +1,18 @@
-git init 
+git init เพื่อสร้าง Git ในโปรเจกต์
+git status เพื่อตรวจสอบสถานะไฟล์
+git add . เพื่อเพิ่มไฟล์ทั้งหมดเข้า staging
+GUI แล้วกด Commit พร้อมตั้งชื่อ commit
+ฟันเฟือง (Settings) → Add Remote
+	Name: origin
+	Fetch: ใส่ลิงก์ GitHub repo
+	Push: เว้นว่าง
+Git Graph → คลิกขวา branch → Push Branch
+
+หรือ terminal
+git init
 git status
-git add . 
+git add .
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/patsarun2545/Rental-Management-System-react-node-express-prisma-postgresql-bootstrap-5.git
+git push -u origin main
