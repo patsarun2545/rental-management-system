@@ -91,6 +91,7 @@ export default function Payments() {
           limit,
           status: statusFilter || undefined,
           type: typeFilter || undefined,
+          search: debouncedSearch || undefined,
         },
       });
       setData(res.data.result.payments || []);
@@ -100,7 +101,7 @@ export default function Payments() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, typeFilter]);
+  }, [page, statusFilter, typeFilter, debouncedSearch]);
 
   useEffect(() => {
     fetchData();
@@ -157,6 +158,17 @@ export default function Payments() {
           {/* FILTER */}
           <div className="row mb-3 g-2">
             <div className="col-md-3">
+              <input
+                className="form-control"
+                placeholder="ค้นหา Rental Code"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
+            </div>
+            <div className="col-md-3">
               <select
                 className="form-select"
                 value={statusFilter}
@@ -186,7 +198,7 @@ export default function Payments() {
                 <option value="PENALTY">PENALTY</option>
               </select>
             </div>
-            <div className="col-md-6 text-end">
+            <div className="col-md-3 text-end">
               <button
                 className="btn btn-primary"
                 onClick={() => {

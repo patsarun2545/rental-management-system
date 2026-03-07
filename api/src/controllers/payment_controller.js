@@ -3,10 +3,15 @@ const response = require("../utils/response.utils");
 const { log: auditLog } = require("./admin_controller");
 
 // Helper: สร้าง Invoice No เช่น INV-20240315-0001
-const generateInvoiceNo = async () => {
+// ใช้ transaction + select for update เพื่อป้องกัน race condition
+const generateInvoiceNo = async (tx = prisma) => {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const count = await prisma.invoice.count();
-  const seq = String(count + 1).padStart(4, "0");
+  // นับเฉพาะ invoice ของวันนี้ และล็อคด้วย raw query เพื่อ atomic
+  const result = await tx.$queryRaw`
+    SELECT COUNT(*)::int AS count FROM "Invoice"
+    WHERE "invoiceNo" LIKE ${"INV-" + date + "-%"}
+  `;
+  const seq = String((result[0]?.count ?? 0) + 1).padStart(4, "0");
   return `INV-${date}-${seq}`;
 };
 
@@ -261,10 +266,12 @@ module.exports = {
         0,
       );
       const total = rental.totalPrice + penaltyTotal;
-      const invoiceNo = await generateInvoiceNo();
 
-      const invoice = await prisma.invoice.create({
-        data: { rentalId, invoiceNo, total },
+      const invoice = await prisma.$transaction(async (tx) => {
+        const invoiceNo = await generateInvoiceNo(tx);
+        return tx.invoice.create({
+          data: { rentalId, invoiceNo, total },
+        });
       });
 
       return response.success(res, 201, "สร้าง Invoice สำเร็จ", {

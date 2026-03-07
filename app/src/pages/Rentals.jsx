@@ -24,9 +24,7 @@ const STATUSES = [
 ];
 
 export default function Rentals() {
-  // ============================================================
   // LIST STATE
-  // ============================================================
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -69,9 +67,7 @@ export default function Rentals() {
     fetchData();
   }, [fetchData]);
 
-  // ============================================================
-  // MANAGE MODAL — tabs: info | items | payment | deposit
-  // ============================================================
+  // MANAGE MODAL — tabs: info | items | payment
   const [mgmt, setMgmt] = useState(null);
   const [mgmtOpen, setMgmtOpen] = useState(false);
   const [mgmtTab, setMgmtTab] = useState("info");
@@ -102,9 +98,7 @@ export default function Rentals() {
     }
   };
 
-  // ============================================================
   // ITEMS TAB
-  // ============================================================
   const [variantOptions, setVariantOptions] = useState([]);
   const [itemForm, setItemForm] = useState({
     productVariantId: "",
@@ -130,8 +124,7 @@ export default function Rentals() {
   };
 
   useEffect(() => {
-    if (mgmtTab !== "items") return;
-    loadVariantOptions();
+    if (mgmtTab === "items") loadVariantOptions();
   }, [mgmtTab]);
 
   const handleAddItem = async () => {
@@ -190,9 +183,7 @@ export default function Rentals() {
     }
   };
 
-  // ============================================================
   // PAYMENT TAB
-  // ============================================================
   const [payForm, setPayForm] = useState({
     amount: "",
     type: "RENTAL",
@@ -267,87 +258,7 @@ export default function Rentals() {
     }
   };
 
-  // ============================================================
-  // DEPOSIT TAB
-  // ============================================================
-  const [depForm, setDepForm] = useState({ amount: "" });
-  const [depSaving, setDepSaving] = useState(false);
-  const [depRefundAmt, setDepRefundAmt] = useState("");
-  const [depRefunding, setDepRefunding] = useState(false);
-  const [depDeductAmt, setDepDeductAmt] = useState("");
-  const [depDeducting, setDepDeducting] = useState(false);
-
-  const handleDepCreate = async () => {
-    if (depSaving) return;
-    if (!depForm.amount) return showError("กรุณาระบุจำนวนเงิน");
-    try {
-      setDepSaving(true);
-      await api.post(`/api/rentals/${mgmt.id}/deposit`, {
-        amount: Number(depForm.amount),
-      });
-      showSuccess("สร้าง Deposit สำเร็จ");
-      setDepForm({ amount: "" });
-      await refreshMgmt();
-    } catch (e) {
-      showError(e);
-    } finally {
-      setDepSaving(false);
-    }
-  };
-
-  const handleDepRefund = async () => {
-    if (depRefunding) return;
-    if (depRefundAmt === "") return showError("กรุณาระบุจำนวนเงิน");
-    const ok = await showConfirm(
-      "คืนมัดจำ?",
-      `คืนเงิน ฿${depRefundAmt}?`,
-      "ยืนยัน",
-      "ยกเลิก",
-    );
-    if (!ok) return;
-    try {
-      setDepRefunding(true);
-      await api.patch(`/api/rentals/${mgmt.id}/deposit/refund`, {
-        refundedAmount: Number(depRefundAmt),
-      });
-      showSuccess("คืนมัดจำสำเร็จ");
-      setDepRefundAmt("");
-      await refreshMgmt();
-    } catch (e) {
-      showError(e);
-    } finally {
-      setDepRefunding(false);
-    }
-  };
-
-  const handleDepDeduct = async () => {
-    if (depDeducting) return;
-    if (!depDeductAmt) return showError("กรุณาระบุจำนวนเงิน");
-    const ok = await showConfirm(
-      "หักมัดจำ?",
-      `หัก ฿${depDeductAmt} จากมัดจำ?`,
-      "ยืนยัน",
-      "ยกเลิก",
-    );
-    if (!ok) return;
-    try {
-      setDepDeducting(true);
-      await api.patch(`/api/rentals/${mgmt.id}/deposit/deduct`, {
-        amount: Number(depDeductAmt),
-      });
-      showSuccess("หักมัดจำสำเร็จ");
-      setDepDeductAmt("");
-      await refreshMgmt();
-    } catch (e) {
-      showError(e);
-    } finally {
-      setDepDeducting(false);
-    }
-  };
-
-  // ============================================================
   // STATUS QUICK ACTIONS
-  // ============================================================
   const handleConfirm = async (item) => {
     const ok = await showConfirm(
       "ยืนยันการเช่า?",
@@ -405,27 +316,7 @@ export default function Rentals() {
     }
   };
 
-  const handleComplete = async (item) => {
-    const ok = await showConfirm(
-      "ปิดงานเช่า?",
-      `ปิด "${item.code}" เป็น COMPLETED?`,
-      "ยืนยัน",
-      "ยกเลิก",
-    );
-    if (!ok) return;
-    try {
-      await api.patch(`/api/rentals/${item.id}/complete`);
-      showSuccess("ปิดงานสำเร็จ");
-      fetchData();
-      if (mgmt?.id === item.id) await refreshMgmt();
-    } catch (e) {
-      showError(e);
-    }
-  };
-
-  // ============================================================
   // CREATE RENTAL
-  // ============================================================
   const emptyCreate = {
     userId: "",
     startDate: "",
@@ -491,7 +382,6 @@ export default function Rentals() {
       setCreateForm(emptyCreate);
       setCreateOpen(false);
       fetchData();
-      // เปิด manage modal ทันที
       setMgmt(res.data.result);
       setMgmtTab("info");
       setMgmtOpen(true);
@@ -502,15 +392,11 @@ export default function Rentals() {
     }
   };
 
-  // ============================================================
-  // RENDER
-  // ============================================================
   const canEditItems = mgmt && ["PENDING", "CONFIRMED"].includes(mgmt.status);
-  const deposit = mgmt?.deposit;
 
   return (
     <>
-      {/* ===================== LIST CARD ===================== */}
+      {/* LIST CARD */}
       <div className="card mt-3 shadow-sm">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span>จัดการการเช่า</span>
@@ -568,7 +454,7 @@ export default function Rentals() {
                   <th>วันคืน</th>
                   <th>ยอดรวม</th>
                   <th>สถานะ</th>
-                  <th className="text-center" width="210">
+                  <th className="text-center" width="220">
                     จัดการ
                   </th>
                 </tr>
@@ -635,15 +521,7 @@ export default function Rentals() {
                             Activate
                           </button>
                         )}
-                        {item.status === "RETURNED" && (
-                          <button
-                            className="btn btn-outline-dark btn-sm me-1"
-                            onClick={() => handleComplete(item)}
-                          >
-                            Complete
-                          </button>
-                        )}
-                        {["PENDING", "CONFIRMED"].includes(item.status) && (
+                        {item.status === "PENDING" && (
                           <button
                             className="btn btn-outline-danger btn-sm"
                             onClick={() => handleCancel(item)}
@@ -681,7 +559,7 @@ export default function Rentals() {
         </div>
       </div>
 
-      {/* ===================== MANAGE MODAL ===================== */}
+      {/* MANAGE MODAL */}
       <MyModal
         id="modalManageRental"
         title={`จัดการ — ${mgmt?.code || ""}`}
@@ -694,7 +572,6 @@ export default function Rentals() {
       >
         {mgmt && (
           <>
-            {/* STATUS + QUICK ACTIONS */}
             <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
               <span className={`badge bg-${STATUS_COLORS[mgmt.status]} fs-6`}>
                 {mgmt.status}
@@ -715,15 +592,7 @@ export default function Rentals() {
                   ▶ Activate
                 </button>
               )}
-              {mgmt.status === "RETURNED" && (
-                <button
-                  className="btn btn-dark btn-sm"
-                  onClick={() => handleComplete(mgmt)}
-                >
-                  ✔ Complete
-                </button>
-              )}
-              {["PENDING", "CONFIRMED"].includes(mgmt.status) && (
+              {mgmt.status === "PENDING" && (
                 <button
                   className="btn btn-outline-danger btn-sm"
                   onClick={() => handleCancel(mgmt)}
@@ -733,7 +602,6 @@ export default function Rentals() {
               )}
             </div>
 
-            {/* TABS */}
             <ul className="nav nav-tabs mb-3">
               {[
                 { key: "info", label: "ข้อมูล" },
@@ -742,7 +610,6 @@ export default function Rentals() {
                   key: "payment",
                   label: `ชำระเงิน (${mgmt.payments?.length || 0})`,
                 },
-                { key: "deposit", label: "มัดจำ" },
               ].map((t) => (
                 <li key={t.key} className="nav-item">
                   <button
@@ -755,7 +622,7 @@ export default function Rentals() {
               ))}
             </ul>
 
-            {/* ── INFO ── */}
+            {/* INFO TAB */}
             {mgmtTab === "info" && (
               <div>
                 <div className="row g-2 mb-2">
@@ -801,50 +668,15 @@ export default function Rentals() {
                   </strong>
                 </div>
                 {mgmt.promotion && (
-                  <div className="alert alert-info py-1 px-2 small mb-2">
+                  <div className="alert alert-info py-1 px-2 small mb-0">
                     โปรโมชัน: <strong>{mgmt.promotion.name}</strong> ลด{" "}
                     {mgmt.promotion.discount}%
-                  </div>
-                )}
-                {mgmt.penalties?.length > 0 && (
-                  <>
-                    <small className="text-muted fw-bold">ค่าปรับ</small>
-                    {mgmt.penalties.map((p) => (
-                      <div
-                        key={p.id}
-                        className="d-flex justify-content-between small py-1 border-bottom"
-                      >
-                        <span>
-                          {p.type} {p.note ? `— ${p.note}` : ""}
-                        </span>
-                        <span className="text-danger fw-bold">
-                          ฿{p.amount?.toLocaleString()}
-                        </span>
-                      </div>
-                    ))}
-                  </>
-                )}
-                {mgmt.returnLog && (
-                  <div className="alert alert-success py-2 small mt-2 mb-0">
-                    <strong>คืนสินค้าแล้ว</strong> —{" "}
-                    {new Date(mgmt.returnLog.returnedAt).toLocaleDateString(
-                      "th-TH",
-                    )}{" "}
-                    &nbsp;
-                    <span
-                      className={`badge bg-${mgmt.returnLog.condition === "GOOD" ? "success" : "danger"}`}
-                    >
-                      {mgmt.returnLog.condition}
-                    </span>
-                    {mgmt.returnLog.note && (
-                      <span className="ms-2">{mgmt.returnLog.note}</span>
-                    )}
                   </div>
                 )}
               </div>
             )}
 
-            {/* ── ITEMS ── */}
+            {/* ITEMS TAB */}
             {mgmtTab === "items" && (
               <div>
                 <div className="table-responsive mb-3">
@@ -974,7 +806,6 @@ export default function Rentals() {
                     )}
                   </table>
                 </div>
-
                 {canEditItems ? (
                   <div className="border rounded p-2 bg-light">
                     <small className="text-muted fw-bold d-block mb-2">
@@ -1040,7 +871,7 @@ export default function Rentals() {
               </div>
             )}
 
-            {/* ── PAYMENT ── */}
+            {/* PAYMENT TAB */}
             {mgmtTab === "payment" && (
               <div>
                 {mgmt.payments?.length > 0 && (
@@ -1126,7 +957,6 @@ export default function Rentals() {
                     </table>
                   </div>
                 )}
-
                 {!["CANCELLED", "COMPLETED"].includes(mgmt.status) && (
                   <div className="border rounded p-2 bg-light">
                     <small className="text-muted fw-bold d-block mb-2">
@@ -1197,7 +1027,6 @@ export default function Rentals() {
                     </button>
                   </div>
                 )}
-
                 {mgmt.payments?.length === 0 &&
                   ["CANCELLED", "COMPLETED"].includes(mgmt.status) && (
                     <p className="text-muted text-center mb-0">
@@ -1206,137 +1035,11 @@ export default function Rentals() {
                   )}
               </div>
             )}
-
-            {/* ── DEPOSIT ── */}
-            {mgmtTab === "deposit" && (
-              <div>
-                {!deposit ? (
-                  <div className="border rounded p-3 bg-light">
-                    <p className="text-muted small mb-2">
-                      ยังไม่มี เงินมัดจำ สำหรับ ค่าเช่า นี้
-                    </p>
-                    <label className="form-label small">จำนวนมัดจำ (฿)</label>
-                    <input
-                      type="number"
-                      className="form-control form-control-sm mb-2"
-                      placeholder="0"
-                      value={depForm.amount}
-                      onChange={(e) => setDepForm({ amount: e.target.value })}
-                      disabled={depSaving}
-                    />
-                    <button
-                      className="btn btn-primary btn-sm w-100"
-                      onClick={handleDepCreate}
-                      disabled={depSaving}
-                    >
-                      {depSaving ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-1" />
-                          กำลังสร้าง...
-                        </>
-                      ) : (
-                        "สร้าง Deposit"
-                      )}
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="card mb-3">
-                      <div className="card-body py-2">
-                        <div className="row g-2 text-center">
-                          <div className="col-4">
-                            <small className="text-muted d-block">มัดจำ</small>
-                            <strong>฿{deposit.amount?.toLocaleString()}</strong>
-                          </div>
-                          <div className="col-4">
-                            <small className="text-muted d-block">
-                              คืนแล้ว
-                            </small>
-                            <strong className="text-success">
-                              ฿{(deposit.refundedAmount || 0)?.toLocaleString()}
-                            </strong>
-                          </div>
-                          <div className="col-4">
-                            <small className="text-muted d-block">สถานะ</small>
-                            <span
-                              className={`badge bg-${deposit.status === "HELD" ? "warning" : deposit.status === "REFUNDED" ? "success" : "danger"}`}
-                            >
-                              {deposit.status}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {deposit.status === "HELD" ? (
-                      <div className="row g-2">
-                        <div className="col-6">
-                          <div className="border rounded p-2 bg-light h-100">
-                            <small className="text-muted fw-bold d-block mb-2">
-                              คืนมัดจำ
-                            </small>
-                            <input
-                              type="number"
-                              className="form-control form-control-sm mb-2"
-                              placeholder={`สูงสุด ฿${deposit.amount?.toLocaleString()}`}
-                              value={depRefundAmt}
-                              onChange={(e) => setDepRefundAmt(e.target.value)}
-                              disabled={depRefunding}
-                            />
-                            <button
-                              className="btn btn-success btn-sm w-100"
-                              onClick={handleDepRefund}
-                              disabled={depRefunding}
-                            >
-                              {depRefunding ? (
-                                <span className="spinner-border spinner-border-sm" />
-                              ) : (
-                                "คืนมัดจำ"
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                        <div className="col-6">
-                          <div className="border rounded p-2 bg-light h-100">
-                            <small className="text-muted fw-bold d-block mb-2">
-                              หักมัดจำ
-                            </small>
-                            <input
-                              type="number"
-                              className="form-control form-control-sm mb-2"
-                              placeholder={`สูงสุด ฿${deposit.amount?.toLocaleString()}`}
-                              value={depDeductAmt}
-                              onChange={(e) => setDepDeductAmt(e.target.value)}
-                              disabled={depDeducting}
-                            />
-                            <button
-                              className="btn btn-danger btn-sm w-100"
-                              onClick={handleDepDeduct}
-                              disabled={depDeducting}
-                            >
-                              {depDeducting ? (
-                                <span className="spinner-border spinner-border-sm" />
-                              ) : (
-                                "หักมัดจำ"
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="alert alert-secondary py-2 small mb-0">
-                        Deposit ดำเนินการแล้ว ({deposit.status})
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
           </>
         )}
       </MyModal>
 
-      {/* ===================== CREATE RENTAL MODAL ===================== */}
+      {/* CREATE RENTAL MODAL */}
       <MyModal
         id="modalCreateRental"
         title="สร้างรายการเช่าใหม่"
@@ -1365,7 +1068,6 @@ export default function Rentals() {
             </option>
           ))}
         </select>
-
         <div className="row g-2 mb-3">
           <div className="col-6">
             <label className="form-label">
@@ -1396,7 +1098,6 @@ export default function Rentals() {
             />
           </div>
         </div>
-
         <div className="row g-2 mb-3">
           <div className="col-6">
             <label className="form-label">มัดจำ (฿)</label>
@@ -1425,7 +1126,6 @@ export default function Rentals() {
             />
           </div>
         </div>
-
         <label className="form-label">โปรโมชัน (ถ้ามี)</label>
         <select
           className="form-select mb-3"
@@ -1442,7 +1142,6 @@ export default function Rentals() {
             </option>
           ))}
         </select>
-
         <div className="d-flex justify-content-between align-items-center mb-2">
           <label className="form-label mb-0">
             รายการสินค้า <span className="text-danger">*</span>
@@ -1461,7 +1160,6 @@ export default function Rentals() {
             + เพิ่ม
           </button>
         </div>
-
         {createForm.items.map((item, idx) => (
           <div key={idx} className="row g-2 mb-2 align-items-center">
             <div className="col-7">
@@ -1517,7 +1215,6 @@ export default function Rentals() {
             </div>
           </div>
         ))}
-
         <hr />
         <button
           className="btn btn-primary w-100"
@@ -1535,7 +1232,7 @@ export default function Rentals() {
         </button>
       </MyModal>
 
-      {/* ===================== SLIP MODAL ===================== */}
+      {/* SLIP MODAL */}
       <MyModal
         id="modalSlip"
         title="สลิปการชำระเงิน"

@@ -181,25 +181,56 @@ module.exports = {
         totalPrice = totalPrice * (1 - promo.discount / 100);
       }
 
-      const rental = await prisma.rental.create({
-        data: {
-          code: generateCode(),
-          userId,
-          startDate: start,
-          endDate: end,
-          totalPrice,
-          depositAmount: depositAmount ? Number(depositAmount) : null,
-          lateFeePerDay: lateFeePerDay ? Number(lateFeePerDay) : 0,
-          promotionId: promotionId ? Number(promotionId) : null,
-          status: "PENDING",
-          paymentStatus: "PENDING",
-          items: { create: resolvedItems },
-        },
-        include: rentalInclude,
+      const rental = await prisma.$transaction(async (tx) => {
+        // ตรวจสอบ stock ภายใน transaction เพื่อป้องกัน race condition
+        let calcTotal = 0;
+        for (const item of resolvedItems) {
+          const variant = await tx.productVariant.findUnique({
+            where: { id: item.productVariantId },
+          });
+          if (!variant || variant.stock < item.quantity) {
+            throw new Error(`สินค้า variant id: ${item.productVariantId} ไม่เพียงพอ`);
+          }
+          calcTotal += variant.price * item.quantity;
+        }
+
+        // apply promotion อีกครั้งภายใน tx
+        let finalPrice = calcTotal;
+        if (promotionId) {
+          const promo = await tx.promotion.findUnique({
+            where: { id: Number(promotionId) },
+          });
+          if (promo) {
+            const now = new Date();
+            if (now >= promo.startDate && now <= promo.endDate) {
+              finalPrice = calcTotal * (1 - promo.discount / 100);
+            }
+          }
+        }
+
+        return tx.rental.create({
+          data: {
+            code: generateCode(),
+            userId,
+            startDate: start,
+            endDate: end,
+            totalPrice: finalPrice,
+            depositAmount: depositAmount ? Number(depositAmount) : null,
+            lateFeePerDay: lateFeePerDay ? Number(lateFeePerDay) : 0,
+            promotionId: promotionId ? Number(promotionId) : null,
+            status: "PENDING",
+            paymentStatus: "PENDING",
+            items: { create: resolvedItems },
+          },
+          include: rentalInclude,
+        });
       });
 
       return response.success(res, 201, "สร้างรายการเช่าสำเร็จ", rental);
     } catch (e) {
+      if (e.message?.includes("ไม่เพียงพอ")) {
+        return response.error(res, 400, e.message);
+      }
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -729,13 +760,27 @@ module.exports = {
 // ============================================================
 
 async function _recalcTotalPrice(rentalId) {
-  const allItems = await prisma.rentalItem.findMany({
-    where: { rentalId },
-    include: { variant: true },
+  const rental = await prisma.rental.findUnique({
+    where: { id: rentalId },
+    include: {
+      items: { include: { variant: true } },
+      promotion: true,
+    },
   });
-  const totalPrice = allItems.reduce(
+  if (!rental) return;
+
+  let totalPrice = rental.items.reduce(
     (sum, i) => sum + i.variant.price * i.quantity,
     0,
   );
+
+  if (rental.promotion) {
+    const now = new Date();
+    // apply discount เฉพาะโปรโมชันที่ยังไม่หมดอายุ
+    if (now >= rental.promotion.startDate && now <= rental.promotion.endDate) {
+      totalPrice = totalPrice * (1 - rental.promotion.discount / 100);
+    }
+  }
+
   await prisma.rental.update({ where: { id: rentalId }, data: { totalPrice } });
 }

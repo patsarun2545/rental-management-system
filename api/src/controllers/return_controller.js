@@ -276,6 +276,18 @@ module.exports = {
         return response.error(res, 400, "จำนวนคืนมากกว่ามัดจำที่รับมา");
       }
 
+      // ตรวจสอบว่ามี payment PENDING ค้างอยู่หรือไม่
+      const pendingPayments = await prisma.payment.count({
+        where: { rentalId, status: "PENDING" },
+      });
+      if (pendingPayments > 0) {
+        return response.error(
+          res,
+          400,
+          "ยังมีรายการชำระเงินที่รอการตรวจสอบ กรุณาอนุมัติหรือปฏิเสธก่อน",
+        );
+      }
+
       const newStatus =
         Number(refundedAmount) === deposit.amount ? "REFUNDED" : "DEDUCTED";
 
