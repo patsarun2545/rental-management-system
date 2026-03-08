@@ -197,11 +197,11 @@ export default function Sidebar() {
         <div className="sidebar-brand">
           <Link to="/dashboard" className="brand-link">
             <img
-              src="/dist/assets/img/AdminLTELogo.png"
+              src="/dist/assets/img/Logo.png"
               alt="AdminLTE Logo"
               className="brand-image opacity-75 shadow"
             />
-            <span className="brand-text fw-light">AdminPOS</span>
+            <span className="brand-text fw-light">RMS</span>
           </Link>
         </div>
 
@@ -212,7 +212,7 @@ export default function Sidebar() {
             <div className="d-flex align-items-center mb-2">
               <div className="image me-2 flex-shrink-0">
                 <img
-                  src="/dist/assets/img/user2-160x160.jpg"
+                  src="/dist/assets/img/user.png"
                   className="img-circle elevation-2"
                   alt="User Image"
                   style={{ width: 34, height: 34 }}

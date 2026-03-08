@@ -69,8 +69,12 @@ export default function Invoices() {
   // =========================
   const handleView = async (item) => {
     try {
-      const res = await api.get(`/api/rentals/${item.rentalId}/invoice`);
-      setDetail({ ...res.data.result, rental: item.rental });
+      // ดึง invoice + rental แบบ full (มี items, penalties)
+      const [invoiceRes, rentalRes] = await Promise.all([
+        api.get(`/api/rentals/${item.rentalId}/invoice`),
+        api.get(`/api/rentals/${item.rentalId}`),
+      ]);
+      setDetail({ ...invoiceRes.data.result, rental: rentalRes.data.result });
       setDetailOpen(true);
     } catch (e) {
       showError(e);

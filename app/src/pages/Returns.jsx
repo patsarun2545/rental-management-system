@@ -36,45 +36,60 @@ export default function Returns() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const statuses = statusFilter
-        ? [statusFilter]
-        : ["ACTIVE", "LATE", "RETURNED"];
-
-      const results = await Promise.all(
-        statuses.map((s) =>
-          api.get("/api/rentals", {
-            params: {
-              page: s === statusFilter ? page : 1,
-              limit: s === statusFilter ? limit : 1000,
-              search: debouncedSearch,
-              status: s,
-            },
-          }),
-        ),
-      );
-
-      let combined = [];
-      let totalCount = 0;
 
       if (statusFilter) {
-        combined = results[0].data.result.rentals || [];
-        totalCount = results[0].data.result.total || 0;
+        // กรอง status เดียว → server-side pagination ปกติ
+        const res = await api.get("/api/rentals", {
+          params: {
+            page,
+            limit,
+            search: debouncedSearch,
+            status: statusFilter,
+          },
+        });
+        setData(res.data.result.rentals || []);
+        setTotal(res.data.result.total || 0);
       } else {
-        // LATE ก่อน (urgent) แล้ว ACTIVE แล้ว RETURNED
-        const [late, active, returned] = results;
-        const lateList = late.data.result.rentals || [];
-        const activeList = active.data.result.rentals || [];
-        const returnedList = returned.data.result.rentals || [];
-        // paginate จาก active (หลัก) + late + returned ที่ load ทั้งหมด
-        combined = [...lateList, ...activeList, ...returnedList];
-        totalCount =
-          (late.data.result.total || 0) +
-          (active.data.result.total || 0) +
-          (returned.data.result.total || 0);
+        // ไม่เลือก filter → โหลด LATE, ACTIVE, RETURNED แต่ละอันมี pagination ของตัวเอง
+        // ใช้ page และ limit ร่วมกัน โดย sort LATE ก่อนใน server หรือรวม client แบบมี offset
+        // วิธีที่ถูกต้อง: ใช้ status array query หรือ fetch รวมแบบ offset จริง
+        // เนื่องจาก backend รับ status เดียว จึง concat 3 status แบบ offset จาก total
+        const [r1, r2, r3] = await Promise.all([
+          api.get("/api/rentals", {
+            params: {
+              page: 1,
+              limit: 9999,
+              search: debouncedSearch,
+              status: "LATE",
+            },
+          }),
+          api.get("/api/rentals", {
+            params: {
+              page: 1,
+              limit: 9999,
+              search: debouncedSearch,
+              status: "ACTIVE",
+            },
+          }),
+          api.get("/api/rentals", {
+            params: {
+              page: 1,
+              limit: 9999,
+              search: debouncedSearch,
+              status: "RETURNED",
+            },
+          }),
+        ]);
+        const lateList = r1.data.result.rentals || [];
+        const activeList = r2.data.result.rentals || [];
+        const returnedList = r3.data.result.rentals || [];
+        const combined = [...lateList, ...activeList, ...returnedList];
+        const totalCount = combined.length;
+        // paginate client-side จาก combined
+        const start = (page - 1) * limit;
+        setData(combined.slice(start, start + limit));
+        setTotal(totalCount);
       }
-
-      setData(combined);
-      setTotal(totalCount);
     } catch (e) {
       showError(e);
     } finally {

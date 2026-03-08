@@ -268,18 +268,28 @@ export default function Payments() {
                         {new Date(item.createdAt).toLocaleDateString("th-TH")}
                       </td>
                       <td className="text-center">
-                        <button
-                          className="btn btn-outline-success btn-sm me-2"
-                          onClick={() => handleApprove(item)}
-                        >
-                          อนุมัติ
-                        </button>
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          onClick={() => handleReject(item)}
-                        >
-                          ปฏิเสธ
-                        </button>
+                        {item.status === "PENDING" ? (
+                          <>
+                            <button
+                              className="btn btn-outline-success btn-sm me-2"
+                              onClick={() => handleApprove(item)}
+                            >
+                              อนุมัติ
+                            </button>
+                            <button
+                              className="btn btn-outline-danger btn-sm"
+                              onClick={() => handleReject(item)}
+                            >
+                              ปฏิเสธ
+                            </button>
+                          </>
+                        ) : (
+                          <span
+                            className={`badge bg-${item.status === "APPROVED" ? "success" : "danger"}`}
+                          >
+                            {item.status}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

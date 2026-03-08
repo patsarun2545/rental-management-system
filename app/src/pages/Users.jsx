@@ -182,13 +182,13 @@ export default function Users() {
     try {
       setAddressSaving(true);
       if (!addressForm.id) {
-        // Admin ใช้ endpoint ของ user โดยตรง
         await api.post(`/api/users/${addressUserId}/addresses`, {
           address: addressForm.address.trim(),
         });
         showSuccess("เพิ่มที่อยู่สำเร็จ");
       } else {
-        await api.put(`/api/users/me/addresses/${addressForm.id}`, {
+        // Admin แก้ที่อยู่ของ user คนอื่น ต้องใช้ /:userId/addresses/:id
+        await api.put(`/api/users/${addressUserId}/addresses/${addressForm.id}`, {
           address: addressForm.address.trim(),
         });
         showSuccess("แก้ไขที่อยู่สำเร็จ");
@@ -213,7 +213,8 @@ export default function Users() {
     if (!confirmed) return;
     try {
       setAddressRemoving(addr.id);
-      await api.delete(`/api/users/me/addresses/${addr.id}`);
+      // Admin ลบที่อยู่ของ user คนอื่น ต้องใช้ /:userId/addresses/:id
+      await api.delete(`/api/users/${addressUserId}/addresses/${addr.id}`);
       showSuccess("ลบที่อยู่สำเร็จ");
       setAddresses((prev) => prev.filter((a) => a.id !== addr.id));
     } catch (e) {

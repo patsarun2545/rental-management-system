@@ -35,6 +35,7 @@ router.get("/payments", paymentController.getAll);
 // ============================================================
 router.get("/reservations", rentalController.getAllReservations);
 router.get("/reservations/check", rentalController.checkAvailability);
+router.get("/reservations/:id", rentalController.getReservationById);
 
 // ============================================================
 // INVOICES

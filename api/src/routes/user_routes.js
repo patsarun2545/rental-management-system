@@ -28,5 +28,7 @@ router.delete("/:id", auth, isAdmin, userController.remove);
 // ============================================================
 router.get("/:userId/addresses", auth, isAdmin, userController.getAddressesByUser);
 router.post("/:userId/addresses", auth, isAdmin, userController.createAddressForUser);
+router.put("/:userId/addresses/:id", auth, isAdmin, userController.updateAddressForUser);
+router.delete("/:userId/addresses/:id", auth, isAdmin, userController.removeAddressForUser);
 
 module.exports = router;

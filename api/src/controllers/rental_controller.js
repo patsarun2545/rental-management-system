@@ -145,6 +145,12 @@ module.exports = {
       const resolvedItems = [];
 
       for (const item of items) {
+        if (
+          !Number.isInteger(Number(item.productVariantId)) ||
+          Number(item.quantity) < 1
+        ) {
+          return response.error(res, 400, "ข้อมูล items ไม่ถูกต้อง");
+        }
         const variant = await prisma.productVariant.findUnique({
           where: { id: Number(item.productVariantId) },
         });
@@ -155,6 +161,7 @@ module.exports = {
             `ไม่พบสินค้า variant id: ${item.productVariantId}`,
           );
         }
+        // pre-check stock (best-effort ก่อน tx — tx จะ lock และตรวจซ้ำ)
         if (variant.stock < Number(item.quantity)) {
           return response.error(
             res,
@@ -182,14 +189,24 @@ module.exports = {
       }
 
       const rental = await prisma.$transaction(async (tx) => {
-        // ตรวจสอบ stock ภายใน transaction เพื่อป้องกัน race condition
+        // ล็อค variant rows เพื่อป้องกัน race condition (SELECT FOR UPDATE)
+        const variantIds = resolvedItems.map((i) => i.productVariantId);
+        await tx.$executeRaw`
+          SELECT id FROM "ProductVariant"
+          WHERE id = ANY(${variantIds}::int[])
+          FOR UPDATE
+        `;
+
+        // ตรวจสอบ stock อีกครั้งภายใน lock
         let calcTotal = 0;
         for (const item of resolvedItems) {
           const variant = await tx.productVariant.findUnique({
             where: { id: item.productVariantId },
           });
           if (!variant || variant.stock < item.quantity) {
-            throw new Error(`สินค้า variant id: ${item.productVariantId} ไม่เพียงพอ`);
+            throw new Error(
+              `สินค้า variant id: ${item.productVariantId} ไม่เพียงพอ`,
+            );
           }
           calcTotal += variant.price * item.quantity;
         }
@@ -502,6 +519,14 @@ module.exports = {
       }
 
       await prisma.$transaction(async (tx) => {
+        // ล็อค variant rows ก่อนตัด stock เพื่อป้องกัน race condition
+        const variantIds = rental.items.map((i) => i.productVariantId);
+        await tx.$executeRaw`
+          SELECT id FROM "ProductVariant"
+          WHERE id = ANY(${variantIds}::int[])
+          FOR UPDATE
+        `;
+
         for (const item of rental.items) {
           await tx.productVariant.update({
             where: { id: item.productVariantId },
@@ -549,7 +574,7 @@ module.exports = {
   activate: async (req, res) => {
     try {
       const rentalId = Number(req.params.id);
-      const { pickupDate } = req.body;
+      const { pickupDate } = req.body || {};
 
       const rental = await prisma.rental.findUnique({
         where: { id: rentalId },
@@ -576,6 +601,7 @@ module.exports = {
 
       return response.success(res, 200, "เปิดใช้งานการเช่าสำเร็จ", updated);
     } catch (e) {
+      console.error("activate error:", e);
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -629,6 +655,7 @@ module.exports = {
 
       const rental = await prisma.rental.findUnique({
         where: { id: rentalId },
+        include: { deposit: true, penalties: true },
       });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
@@ -637,6 +664,27 @@ module.exports = {
           res,
           400,
           "สามารถปิดรายการได้เฉพาะที่คืนสินค้าแล้วเท่านั้น",
+        );
+      }
+
+      // ตรวจว่ายังมี payment PENDING ค้างอยู่หรือไม่
+      const pendingPayments = await prisma.payment.count({
+        where: { rentalId, status: "PENDING" },
+      });
+      if (pendingPayments > 0) {
+        return response.error(
+          res,
+          400,
+          "ยังมีรายการชำระเงินที่รอการตรวจสอบ กรุณาอนุมัติหรือปฏิเสธก่อน",
+        );
+      }
+
+      // ถ้ามี deposit ต้องดำเนินการก่อน (ไม่ใช่ HELD ค้างอยู่)
+      if (rental.deposit && rental.deposit.status === "HELD") {
+        return response.error(
+          res,
+          400,
+          "ยังมีมัดจำที่รอการคืน กรุณาดำเนินการคืนหรือหักมัดจำก่อน (PATCH /rentals/:id/deposit/refund)",
         );
       }
 
@@ -652,6 +700,33 @@ module.exports = {
       );
 
       return response.success(res, 200, "ปิดรายการเช่าสำเร็จ", updated);
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // GET /reservations/:id — Admin
+  getReservationById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      const reservation = await prisma.stockReservation.findUnique({
+        where: { id },
+        include: {
+          variant: {
+            include: {
+              product: { select: { id: true, name: true } },
+              size: true,
+              color: true,
+            },
+          },
+          rental: { select: { id: true, code: true, status: true } },
+        },
+      });
+
+      if (!reservation) return response.error(res, 404, "ไม่พบข้อมูลการจอง");
+
+      return response.success(res, 200, "ข้อมูลการจอง stock", reservation);
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }

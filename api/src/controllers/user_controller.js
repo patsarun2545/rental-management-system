@@ -303,4 +303,47 @@ module.exports = {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
+
+  // PUT /users/:userId/addresses/:id (Admin)
+  updateAddressForUser: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = Number(req.params.userId);
+      let { address } = req.body;
+      address = address?.trim();
+
+      if (!address) return response.error(res, 400, "กรุณากรอกที่อยู่");
+
+      const existing = await prisma.address.findUnique({ where: { id } });
+      if (!existing) return response.error(res, 404, "ไม่พบที่อยู่");
+      if (existing.userId !== userId)
+        return response.error(res, 400, "ที่อยู่ไม่ตรงกับผู้ใช้");
+
+      const updated = await prisma.address.update({
+        where: { id },
+        data: { address },
+      });
+      return response.success(res, 200, "อัปเดตที่อยู่สำเร็จ", updated);
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // DELETE /users/:userId/addresses/:id (Admin)
+  removeAddressForUser: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = Number(req.params.userId);
+
+      const existing = await prisma.address.findUnique({ where: { id } });
+      if (!existing) return response.error(res, 404, "ไม่พบที่อยู่");
+      if (existing.userId !== userId)
+        return response.error(res, 400, "ที่อยู่ไม่ตรงกับผู้ใช้");
+
+      await prisma.address.delete({ where: { id } });
+      return response.success(res, 200, "ลบที่อยู่สำเร็จ");
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
 };

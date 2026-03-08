@@ -5,7 +5,7 @@ export default function Footer() {
         <b>Version</b> 1.0.0
       </div>
       <strong>
-        Copyright &copy; 2025-2026 <a href="#">AdminPOS</a>.
+        Copyright &copy; 2025-2026 <a href="#">RMS</a>.
       </strong>{" "}
       All rights reserved.
     </footer>

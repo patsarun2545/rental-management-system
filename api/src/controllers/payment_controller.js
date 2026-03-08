@@ -3,16 +3,18 @@ const response = require("../utils/response.utils");
 const { log: auditLog } = require("./admin_controller");
 
 // Helper: สร้าง Invoice No เช่น INV-20240315-0001
-// ใช้ transaction + select for update เพื่อป้องกัน race condition
+// ใช้ pg_advisory_xact_lock เพื่อป้องกัน race condition แบบ atomic ภายใน transaction
 const generateInvoiceNo = async (tx = prisma) => {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  // นับเฉพาะ invoice ของวันนี้ และล็อคด้วย raw query เพื่อ atomic
+  const prefix = `INV-${date}-`;
+  // lock key ที่ unique ต่อวัน (hash ของ date string เป็น bigint)
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}::text))`;
   const result = await tx.$queryRaw`
     SELECT COUNT(*)::int AS count FROM "Invoice"
-    WHERE "invoiceNo" LIKE ${"INV-" + date + "-%"}
+    WHERE "invoiceNo" LIKE ${prefix + "%"}
   `;
   const seq = String((result[0]?.count ?? 0) + 1).padStart(4, "0");
-  return `INV-${date}-${seq}`;
+  return `${prefix}${seq}`;
 };
 
 // ============================================================
@@ -162,21 +164,29 @@ module.exports = {
         const rental = payment.rental;
 
         if (payment.type === "DEPOSIT") {
+          // อัปเดต deposit ที่มีอยู่แล้ว (สร้างโดย Admin ผ่าน POST /rentals/:id/deposit)
+          // ถ้ายังไม่มี deposit record → สร้างใหม่อัตโนมัติจากการชำระ
           const existDeposit = await tx.deposit.findUnique({
             where: { rentalId: rental.id },
           });
           if (existDeposit) {
-            await tx.deposit.update({
-              where: { rentalId: rental.id },
-              data: { amount: existDeposit.amount + payment.amount },
-            });
+            if (existDeposit.status !== "HELD") {
+              throw new Error("DEPOSIT_ALREADY_PROCESSED");
+            }
+            // ไม่บวกซ้ำ — payment amount ถือเป็นหลักฐานการชำระ ไม่ใช่เพิ่มยอด
+            // deposit.amount ถูกกำหนดตอน Admin สร้าง deposit record แล้ว
           } else {
+            // Admin ยังไม่ได้สร้าง deposit record ล่วงหน้า → สร้างจาก payment ทันที
             await tx.deposit.create({
               data: {
                 rentalId: rental.id,
                 amount: payment.amount,
                 status: "HELD",
               },
+            });
+            await tx.rental.update({
+              where: { id: rental.id },
+              data: { depositAmount: payment.amount },
             });
           }
         }
@@ -205,6 +215,13 @@ module.exports = {
       );
       return response.success(res, 200, "อนุมัติการชำระเงินสำเร็จ", updated);
     } catch (e) {
+      if (e.message === "DEPOSIT_ALREADY_PROCESSED") {
+        return response.error(
+          res,
+          400,
+          "มัดจำของรายการเช่านี้ถูกดำเนินการแล้ว ไม่สามารถอนุมัติซ้ำได้",
+        );
+      }
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

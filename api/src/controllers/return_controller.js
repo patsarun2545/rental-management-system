@@ -291,16 +291,9 @@ module.exports = {
       const newStatus =
         Number(refundedAmount) === deposit.amount ? "REFUNDED" : "DEDUCTED";
 
-      const updated = await prisma.$transaction(async (tx) => {
-        const dep = await tx.deposit.update({
-          where: { rentalId },
-          data: { refundedAmount: Number(refundedAmount), status: newStatus },
-        });
-        await tx.rental.update({
-          where: { id: rentalId },
-          data: { status: "COMPLETED" },
-        });
-        return dep;
+      const updated = await prisma.deposit.update({
+        where: { rentalId },
+        data: { refundedAmount: Number(refundedAmount), status: newStatus },
       });
 
       await auditLog(
@@ -308,7 +301,12 @@ module.exports = {
         req.user.id,
       );
 
-      return response.success(res, 200, "คืนมัดจำสำเร็จ", updated);
+      return response.success(
+        res,
+        200,
+        "คืนมัดจำสำเร็จ — กรุณาปิดรายการเช่าผ่าน PATCH /rentals/:id/complete",
+        updated,
+      );
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
