@@ -10,14 +10,14 @@ export default function Sidebar() {
   const navigate = useNavigate();
 
   // =========================
-  // PROFILE MODAL
+  // โมดัลโปรไฟล์
   // =========================
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
 
   // =========================
-  // PASSWORD MODAL
+  // โมดัลเปลี่ยนรหัสผ่าน
   // =========================
   const [pwOpen, setPwOpen] = useState(false);
   const [pwForm, setPwForm] = useState({
@@ -28,7 +28,7 @@ export default function Sidebar() {
   const [pwSaving, setPwSaving] = useState(false);
 
   // =========================
-  // ADDRESS MODAL
+  // โมดัลที่อยู่
   // =========================
   const [addressOpen, setAddressOpen] = useState(false);
   const [addresses, setAddresses] = useState([]);
@@ -38,18 +38,18 @@ export default function Sidebar() {
   const [addressRemoving, setAddressRemoving] = useState(null);
 
   // =========================
-  // SIGN OUT
+  // ออกจากระบบ
   // =========================
   const signOut = async () => {
     try {
       const confirmed = await showConfirm(
-        "Logout",
-        "Are you sure you want to logout?",
+        "ออกจากระบบ",
+        "คุณต้องการออกจากระบบใช่หรือไม่?",
       );
       if (confirmed) {
         await api.post("/api/auth/signOut");
         setUser(null);
-        showSuccess("Logout Success");
+        showSuccess("ออกจากระบบสำเร็จ");
         navigate("/");
       }
     } catch (e) {
@@ -58,7 +58,7 @@ export default function Sidebar() {
   };
 
   // =========================
-  // PROFILE HANDLERS
+  // ฟังก์ชันจัดการโปรไฟล์
   // =========================
   const openProfile = () => {
     setProfileForm({ name: user?.name || "", phone: user?.phone || "" });
@@ -89,7 +89,7 @@ export default function Sidebar() {
   };
 
   // =========================
-  // PASSWORD HANDLERS
+  // ฟังก์ชันจัดการรหัสผ่าน
   // =========================
   const openPassword = () => {
     setProfileOpen(false);
@@ -120,7 +120,7 @@ export default function Sidebar() {
   };
 
   // =========================
-  // ADDRESS HANDLERS
+  // ฟังก์ชันจัดการที่อยู่
   // =========================
   const fetchAddresses = async () => {
     try {
@@ -169,8 +169,8 @@ export default function Sidebar() {
   const handleAddressRemove = async (addr) => {
     if (addressRemoving) return;
     const confirmed = await showConfirm(
-      "ยืนยันการลบ?",
-      "ลบที่อยู่นี้?",
+      "ยืนยันการลบ",
+      "คุณต้องการลบที่อยู่นี้ใช่หรือไม่?",
       "ลบ",
       "ยกเลิก",
     );
@@ -253,139 +253,137 @@ export default function Sidebar() {
           </div>
 
           <nav className="mt-2">
-  <ul
-    className="nav sidebar-menu flex-column"
-    data-lte-toggle="treeview"
-    role="menu"
-    data-accordion="false"
-  >
+            <ul
+              className="nav sidebar-menu flex-column"
+              data-lte-toggle="treeview"
+              role="menu"
+              data-accordion="false"
+            >
+              {/* DASHBOARD */}
+              <li className="nav-item">
+                <Link to="/dashboard" className="nav-link">
+                  <i className="nav-icon bi bi-speedometer2"></i>
+                  <p>Dashboard</p>
+                </Link>
+              </li>
 
-    {/* DASHBOARD */}
-    <li className="nav-item">
-      <Link to="/dashboard" className="nav-link">
-        <i className="nav-icon bi bi-speedometer2"></i>
-        <p>Dashboard</p>
-      </Link>
-    </li>
+              {/* ================= MASTER DATA ================= */}
+              <li className="nav-header">Master Data</li>
 
-    {/* ================= MASTER DATA ================= */}
-    <li className="nav-header">Master Data</li>
+              <li className="nav-item">
+                <Link to="/users" className="nav-link">
+                  <i className="nav-icon bi bi-people-fill"></i>
+                  <p>Users</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/users" className="nav-link">
-        <i className="nav-icon bi bi-people-fill"></i>
-        <p>Users</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/products" className="nav-link">
+                  <i className="nav-icon bi bi-box-seam-fill"></i>
+                  <p>Products</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/products" className="nav-link">
-        <i className="nav-icon bi bi-box-seam-fill"></i>
-        <p>Products</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/categories" className="nav-link">
+                  <i className="nav-icon bi bi-tags-fill"></i>
+                  <p>Categories</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/categories" className="nav-link">
-        <i className="nav-icon bi bi-tags-fill"></i>
-        <p>Categories</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/types" className="nav-link">
+                  <i className="nav-icon bi bi-list-ul"></i>
+                  <p>Types</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/types" className="nav-link">
-        <i className="nav-icon bi bi-list-ul"></i>
-        <p>Types</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/sizes-colors" className="nav-link">
+                  <i className="nav-icon bi bi-palette-fill"></i>
+                  <p>Sizes & Colors</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/sizes-colors" className="nav-link">
-        <i className="nav-icon bi bi-palette-fill"></i>
-        <p>Sizes & Colors</p>
-      </Link>
-    </li>
+              {/* ================= RENTAL MANAGEMENT ================= */}
+              <li className="nav-header">Rental Management</li>
 
-    {/* ================= RENTAL MANAGEMENT ================= */}
-    <li className="nav-header">Rental Management</li>
+              <li className="nav-item">
+                <Link to="/reservations" className="nav-link">
+                  <i className="nav-icon bi bi-calendar2-check-fill"></i>
+                  <p>Reservations</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/reservations" className="nav-link">
-        <i className="nav-icon bi bi-calendar2-check-fill"></i>
-        <p>Reservations</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/rentals" className="nav-link">
+                  <i className="nav-icon bi bi-cart-fill"></i>
+                  <p>Rentals</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/rentals" className="nav-link">
-        <i className="nav-icon bi bi-cart-fill"></i>
-        <p>Rentals</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/returns" className="nav-link">
+                  <i className="nav-icon bi bi-arrow-counterclockwise"></i>
+                  <p>Returns</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/returns" className="nav-link">
-        <i className="nav-icon bi bi-arrow-counterclockwise"></i>
-        <p>Returns</p>
-      </Link>
-    </li>
+              {/* ================= FINANCE ================= */}
+              <li className="nav-header">Finance</li>
 
-    {/* ================= FINANCE ================= */}
-    <li className="nav-header">Finance</li>
+              <li className="nav-item">
+                <Link to="/payments" className="nav-link">
+                  <i className="nav-icon bi bi-credit-card-fill"></i>
+                  <p>Payments</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/payments" className="nav-link">
-        <i className="nav-icon bi bi-credit-card-fill"></i>
-        <p>Payments</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/deposits" className="nav-link">
+                  <i className="nav-icon bi bi-wallet-fill"></i>
+                  <p>Deposits</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/deposits" className="nav-link">
-        <i className="nav-icon bi bi-wallet-fill"></i>
-        <p>Deposits</p>
-      </Link>
-    </li>
+              <li className="nav-item">
+                <Link to="/invoices" className="nav-link">
+                  <i className="nav-icon bi bi-receipt"></i>
+                  <p>Invoices</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/invoices" className="nav-link">
-        <i className="nav-icon bi bi-receipt"></i>
-        <p>Invoices</p>
-      </Link>
-    </li>
+              {/* ================= MARKETING ================= */}
+              <li className="nav-header">Marketing</li>
 
-    {/* ================= MARKETING ================= */}
-    <li className="nav-header">Marketing</li>
+              <li className="nav-item">
+                <Link to="/promotions" className="nav-link">
+                  <i className="nav-icon bi bi-megaphone-fill"></i>
+                  <p>Promotions</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/promotions" className="nav-link">
-        <i className="nav-icon bi bi-megaphone-fill"></i>
-        <p>Promotions</p>
-      </Link>
-    </li>
+              {/* ================= REPORTS ================= */}
+              <li className="nav-header">Reports</li>
 
-    {/* ================= REPORTS ================= */}
-    <li className="nav-header">Reports</li>
+              <li className="nav-item">
+                <Link to="/reports" className="nav-link">
+                  <i className="nav-icon bi bi-bar-chart-fill"></i>
+                  <p>Reports</p>
+                </Link>
+              </li>
 
-    <li className="nav-item">
-      <Link to="/reports" className="nav-link">
-        <i className="nav-icon bi bi-bar-chart-fill"></i>
-        <p>Reports</p>
-      </Link>
-    </li>
+              {/* ================= SYSTEM ================= */}
+              <li className="nav-header">System</li>
 
-    {/* ================= SYSTEM ================= */}
-    <li className="nav-header">System</li>
-
-    <li className="nav-item">
-      <Link to="/audit" className="nav-link">
-        <i className="nav-icon bi bi-clipboard2-check-fill"></i>
-        <p>Audit Logs</p>
-      </Link>
-    </li>
-
-  </ul>
-</nav>
+              <li className="nav-item">
+                <Link to="/audit" className="nav-link">
+                  <i className="nav-icon bi bi-clipboard2-check-fill"></i>
+                  <p>Audit Logs</p>
+                </Link>
+              </li>
+            </ul>
+          </nav>
         </div>
       </aside>
 

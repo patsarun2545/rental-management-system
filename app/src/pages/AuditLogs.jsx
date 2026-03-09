@@ -16,16 +16,12 @@ export default function AuditLogs() {
 
   const [page, setPage] = useState(1);
   const limit = 50;
-
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // =========================
-  // FORM STATE — ลบ log เก่า
+  // FORM STATE
   // =========================
-  const [form, setForm] = useState({
-    beforeDate: "",
-  });
-
+  const [form, setForm] = useState({ beforeDate: "" });
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -63,15 +59,12 @@ export default function AuditLogs() {
   }, [fetchData]);
 
   // =========================
-  // FORM HANDLER
+  // FORM HANDLERS
   // =========================
-  const clearForm = () => {
-    setForm({ beforeDate: "" });
-  };
+  const clearForm = () => setForm({ beforeDate: "" });
 
-  const handleChange = (key, value) => {
+  const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -108,7 +101,7 @@ export default function AuditLogs() {
         </div>
 
         <div className="card-body">
-          {/* SEARCH + CLEAR */}
+          {/* SEARCH + ACTION */}
           <div className="row mb-3 g-2">
             <div className="col-md-4">
               <input
@@ -119,7 +112,10 @@ export default function AuditLogs() {
               />
             </div>
             <div className="col-md-8 text-end">
-              <button className="btn btn-danger" onClick={() => { clearForm(); setOpen(true); }}>
+              <button
+                className="btn btn-danger"
+                onClick={() => { clearForm(); setOpen(true); }}
+              >
                 ลบ Log เก่า
               </button>
             </div>
@@ -157,9 +153,21 @@ export default function AuditLogs() {
 
           {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((prev) => prev - 1)}>Previous</button>
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((prev) => prev + 1)}>Next</button>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

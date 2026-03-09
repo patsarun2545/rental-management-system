@@ -16,17 +16,12 @@ export default function Categories() {
 
   const [page, setPage] = useState(1);
   const limit = 10;
-
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // =========================
   // FORM STATE
   // =========================
-  const [form, setForm] = useState({
-    id: null,
-    name: "",
-  });
-
+  const [form, setForm] = useState({ id: null, name: "" });
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [open, setOpen] = useState(false);
@@ -65,15 +60,12 @@ export default function Categories() {
   }, [fetchData]);
 
   // =========================
-  // FORM HANDLER
+  // FORM HANDLERS
   // =========================
-  const clearForm = () => {
-    setForm({ id: null, name: "" });
-  };
+  const clearForm = () => setForm({ id: null, name: "" });
 
-  const handleChange = (key, value) => {
+  const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -119,11 +111,8 @@ export default function Categories() {
       setRemoving(item.id);
       await api.delete(`/api/catalog/categories/${item.id}`);
       showSuccess("ลบสำเร็จ");
-      if (data.length === 1 && page > 1) {
-        setPage((prev) => prev - 1);
-      } else {
-        fetchData();
-      }
+      if (data.length === 1 && page > 1) setPage((p) => p - 1);
+      else fetchData();
     } catch (e) {
       showError(e);
     } finally {
@@ -151,7 +140,10 @@ export default function Categories() {
               />
             </div>
             <div className="col-md-8 text-end">
-              <button className="btn btn-primary" onClick={() => { clearForm(); setOpen(true); }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => { clearForm(); setOpen(true); }}
+              >
                 + เพิ่มหมวดหมู่
               </button>
             </div>
@@ -162,6 +154,7 @@ export default function Categories() {
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
                 <tr>
+                  <th>#</th>
                   <th>ชื่อหมวดหมู่</th>
                   <th>ประเภท</th>
                   <th>สินค้า</th>
@@ -170,12 +163,13 @@ export default function Categories() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="4" className="text-center text-muted">กำลังโหลด...</td></tr>
+                  <tr><td colSpan="5" className="text-center text-muted">กำลังโหลด...</td></tr>
                 ) : data.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
+                  <tr><td colSpan="5" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
                 ) : (
                   data.map((item) => (
                     <tr key={item.id}>
+                      <td>{item.id}</td>
                       <td>{item.name}</td>
                       <td>{item.types?.length ?? 0}</td>
                       <td>{item._count?.products ?? 0}</td>
@@ -206,9 +200,21 @@ export default function Categories() {
 
           {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((prev) => prev - 1)}>Previous</button>
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((prev) => prev + 1)}>Next</button>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

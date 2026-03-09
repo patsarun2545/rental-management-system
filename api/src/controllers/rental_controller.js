@@ -127,7 +127,9 @@ module.exports = {
   // POST /rentals
   create: async (req, res) => {
     try {
-      const userId = req.user.id;
+      const isAdmin = req.user.role === "ADMIN";
+      const targetUserId =
+        isAdmin && req.body.userId ? Number(req.body.userId) : req.user.id;
       let {
         startDate,
         endDate,
@@ -159,7 +161,11 @@ module.exports = {
       for (const item of items) {
         const vid = Number(item.productVariantId);
         if (variantIdSet.has(vid)) {
-          return response.error(res, 400, `productVariantId ${vid} ซ้ำกันใน items กรุณารวมจำนวนให้เป็นรายการเดียว`);
+          return response.error(
+            res,
+            400,
+            `productVariantId ${vid} ซ้ำกันใน items กรุณารวมจำนวนให้เป็นรายการเดียว`,
+          );
         }
         variantIdSet.add(vid);
       }
@@ -248,7 +254,7 @@ module.exports = {
         return tx.rental.create({
           data: {
             code: await generateUniqueCode(tx),
-            userId,
+            userId: targetUserId,
             startDate: start,
             endDate: end,
             totalPrice: finalPrice,
@@ -306,7 +312,7 @@ module.exports = {
         CONFIRMED: ["CANCELLED"],
         ACTIVE: ["LATE", "CANCELLED"],
         LATE: ["CANCELLED"],
-        RETURNED: [],  // ใช้ /complete
+        RETURNED: [], // ใช้ /complete
         COMPLETED: [], // terminal state
         CANCELLED: [], // terminal state
       };
@@ -495,7 +501,9 @@ module.exports = {
       const rentalId = Number(req.params.rentalId);
       const itemId = Number(req.params.itemId);
 
-      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      const rental = await prisma.rental.findUnique({
+        where: { id: rentalId },
+      });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       if (req.user.role !== "ADMIN" && rental.userId !== req.user.id) {
@@ -942,7 +950,8 @@ module.exports = {
       });
 
       if (!admin) return response.error(res, 404, "ไม่พบผู้ใช้");
-      if (admin.role !== "ADMIN") return response.error(res, 400, "ผู้ใช้นี้ไม่ใช่ Admin");
+      if (admin.role !== "ADMIN")
+        return response.error(res, 400, "ผู้ใช้นี้ไม่ใช่ Admin");
 
       // นับรายการเช่าที่ดูแลโดย admin คนนี้ แยกตามสถานะ
       const rentalStats = await prisma.rental.groupBy({
@@ -952,7 +961,7 @@ module.exports = {
       });
 
       const statsMap = Object.fromEntries(
-        rentalStats.map((r) => [r.status, r._count.id])
+        rentalStats.map((r) => [r.status, r._count.id]),
       );
 
       return response.success(res, 200, "ข้อมูล Admin", {
@@ -977,9 +986,18 @@ module.exports = {
         select: { id: true, name: true, role: true },
       });
       if (!admin) return response.error(res, 404, "ไม่พบผู้ใช้");
-      if (admin.role !== "ADMIN") return response.error(res, 400, "ผู้ใช้นี้ไม่ใช่ Admin");
+      if (admin.role !== "ADMIN")
+        return response.error(res, 400, "ผู้ใช้นี้ไม่ใช่ Admin");
 
-      const validStatuses = ["PENDING", "CONFIRMED", "ACTIVE", "RETURNED", "LATE", "CANCELLED", "COMPLETED"];
+      const validStatuses = [
+        "PENDING",
+        "CONFIRMED",
+        "ACTIVE",
+        "RETURNED",
+        "LATE",
+        "CANCELLED",
+        "COMPLETED",
+      ];
       const where = {
         handledBy: adminId,
         ...(status && validStatuses.includes(status) && { status }),
@@ -1031,7 +1049,9 @@ module.exports = {
         return response.error(res, 400, "รูปแบบวันที่ไม่ถูกต้อง");
       }
 
-      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      const rental = await prisma.rental.findUnique({
+        where: { id: rentalId },
+      });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       if (!["ACTIVE", "CONFIRMED"].includes(rental.status)) {
@@ -1188,7 +1208,9 @@ module.exports = {
     try {
       const rentalId = Number(req.params.id);
 
-      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      const rental = await prisma.rental.findUnique({
+        where: { id: rentalId },
+      });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       const reservations = await prisma.stockReservation.findMany({
@@ -1205,7 +1227,12 @@ module.exports = {
         },
       });
 
-      return response.success(res, 200, "รายการจอง stock ของการเช่า", reservations);
+      return response.success(
+        res,
+        200,
+        "รายการจอง stock ของการเช่า",
+        reservations,
+      );
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
@@ -1263,7 +1290,11 @@ module.exports = {
         req.user.id,
       );
 
-      return response.success(res, 200, "ลบ reservation สำเร็จ และคืน stock แล้ว");
+      return response.success(
+        res,
+        200,
+        "ลบ reservation สำเร็จ และคืน stock แล้ว",
+      );
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
@@ -1341,14 +1372,22 @@ module.exports = {
 
       const validStatuses = ["PENDING", "APPROVED", "REJECTED"];
       if (!validStatuses.includes(paymentStatus)) {
-        return response.error(res, 400, "paymentStatus ไม่ถูกต้อง (PENDING / APPROVED / REJECTED)");
+        return response.error(
+          res,
+          400,
+          "paymentStatus ไม่ถูกต้อง (PENDING / APPROVED / REJECTED)",
+        );
       }
 
       const rental = await prisma.rental.findUnique({ where: { id } });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       if (["CANCELLED", "COMPLETED"].includes(rental.status)) {
-        return response.error(res, 400, "ไม่สามารถแก้ไข paymentStatus ของรายการที่ปิดแล้ว");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถแก้ไข paymentStatus ของรายการที่ปิดแล้ว",
+        );
       }
 
       const updated = await prisma.rental.update({
@@ -1364,7 +1403,8 @@ module.exports = {
 
       return response.success(res, 200, "อัปเดต paymentStatus สำเร็จ", updated);
     } catch (e) {
-      if (e.code === "P2025") return response.error(res, 404, "ไม่พบรายการเช่า");
+      if (e.code === "P2025")
+        return response.error(res, 404, "ไม่พบรายการเช่า");
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

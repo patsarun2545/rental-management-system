@@ -435,8 +435,8 @@ export default function Products() {
                     }}
                   >
                     <option value="">ทุกสถานะ</option>
-                    <option value="ACTIVE">ACTIVE (เปิดใช้งาน)</option>
-                    <option value="INACTIVE">INACTIVE (ปิดใช้งาน)</option>
+                    <option value="ACTIVE">เปิดใช้งาน</option>
+                    <option value="INACTIVE">ปิดใช้งาน</option>
                   </select>
                 </div>
                 <div className="col-md-3">
@@ -729,8 +729,8 @@ export default function Products() {
           onChange={(e) => handleChange("status", e.target.value)}
           disabled={saving}
         >
-          <option value="ACTIVE">ACTIVE</option>
-          <option value="INACTIVE">INACTIVE</option>
+          <option value="ACTIVE">เปิดใช้งาน</option>
+          <option value="INACTIVE">ปิดใช้งาน</option>
         </select>
 
         <hr />
@@ -851,7 +851,7 @@ export default function Products() {
       {/* MODAL VARIANT */}
       <MyModal
         id="modalVariant"
-        title={`Variant — ${variantProduct?.name || ""}`}
+        title={`ตัวเลือกสินค้า — ${variantProduct?.name || ""}`}
         open={variantOpen}
         onClose={() => {
           if (varSaving) return;

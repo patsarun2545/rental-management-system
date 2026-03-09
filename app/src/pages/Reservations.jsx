@@ -243,9 +243,9 @@ export default function Reservations() {
 
           {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
           </div>
         </div>
       </div>

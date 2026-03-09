@@ -8,7 +8,8 @@ export default function SignUp() {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const handleChange = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = async () => {
     if (saving) return;
@@ -34,7 +35,10 @@ export default function SignUp() {
 
   return (
     <div className="bg-light d-flex align-items-center justify-content-center vh-100">
-      <div className="card border-0 shadow-sm" style={{ width: "400px", borderRadius: "16px" }}>
+      <div
+        className="card border-0 shadow-sm"
+        style={{ width: "400px", borderRadius: "16px" }}
+      >
         <div className="card-body p-4 p-md-5">
           <h4 className="fw-semibold mb-1 text-center">สมัครสมาชิก</h4>
           <p className="text-muted text-center mb-4" style={{ fontSize: "14px" }}>
@@ -55,7 +59,7 @@ export default function SignUp() {
           </div>
 
           <div className="mb-3">
-            <label className="form-label small text-muted">Email</label>
+            <label className="form-label small text-muted">อีเมล</label>
             <input
               type="email"
               className="form-control"
@@ -81,7 +85,7 @@ export default function SignUp() {
           </div>
 
           <div className="mb-4">
-            <label className="form-label small text-muted">Password</label>
+            <label className="form-label small text-muted">รหัสผ่าน</label>
             <input
               type="password"
               className="form-control"
@@ -101,7 +105,7 @@ export default function SignUp() {
             disabled={saving}
           >
             {saving ? (
-              <><span className="spinner-border spinner-border-sm me-2" />กำลังสมัคร...</>
+              <><span className="spinner-border spinner-border-sm me-2" role="status" />กำลังบันทึก...</>
             ) : "สมัครสมาชิก"}
           </button>
 

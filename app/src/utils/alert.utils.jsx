@@ -50,8 +50,8 @@ export const showInfo = (message = "Information") => {
 export const showConfirm = async (
   title = "Are you sure?",
   text = "",
-  confirmText = "Confirm",
-  cancelText = "Cancel",
+  confirmText = "ยืนยัน",
+  cancelText = "ยกเลิก",
 ) => {
   const result = await Swal.fire({
     ...baseConfig,

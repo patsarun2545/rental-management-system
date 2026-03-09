@@ -16,7 +16,6 @@ export default function Promotions() {
 
   const [page, setPage] = useState(1);
   const limit = 10;
-
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // =========================
@@ -29,7 +28,6 @@ export default function Promotions() {
     startDate: "",
     endDate: "",
   });
-
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [open, setOpen] = useState(false);
@@ -68,15 +66,13 @@ export default function Promotions() {
   }, [fetchData]);
 
   // =========================
-  // FORM HANDLER
+  // FORM HANDLERS
   // =========================
-  const clearForm = () => {
+  const clearForm = () =>
     setForm({ id: null, name: "", discount: "", startDate: "", endDate: "" });
-  };
 
-  const handleChange = (key, value) => {
+  const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -87,8 +83,10 @@ export default function Promotions() {
     try {
       setSaving(true);
       const payload = {
-        name: form.name.trim(), discount: form.discount,
-        startDate: form.startDate, endDate: form.endDate,
+        name: form.name.trim(),
+        discount: form.discount,
+        startDate: form.startDate,
+        endDate: form.endDate,
       };
       if (!form.id) {
         await api.post("/api/promotions", payload);
@@ -109,8 +107,11 @@ export default function Promotions() {
 
   const handleEdit = (item) => {
     setForm({
-      id: item.id, name: item.name, discount: item.discount,
-      startDate: item.startDate?.slice(0, 16), endDate: item.endDate?.slice(0, 16),
+      id: item.id,
+      name: item.name,
+      discount: item.discount,
+      startDate: item.startDate?.slice(0, 16),
+      endDate: item.endDate?.slice(0, 16),
     });
     setOpen(true);
   };
@@ -130,11 +131,8 @@ export default function Promotions() {
       setRemoving(item.id);
       await api.delete(`/api/promotions/${item.id}`);
       showSuccess("ลบสำเร็จ");
-      if (data.length === 1 && page > 1) {
-        setPage((prev) => prev - 1);
-      } else {
-        fetchData();
-      }
+      if (data.length === 1 && page > 1) setPage((p) => p - 1);
+      else fetchData();
     } catch (e) {
       showError(e);
     } finally {
@@ -167,7 +165,10 @@ export default function Promotions() {
               />
             </div>
             <div className="col-md-8 text-end">
-              <button className="btn btn-primary" onClick={() => { clearForm(); setOpen(true); }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => { clearForm(); setOpen(true); }}
+              >
                 + เพิ่มโปรโมชัน
               </button>
             </div>
@@ -230,9 +231,21 @@ export default function Promotions() {
 
           {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((prev) => prev - 1)}>Previous</button>
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((prev) => prev + 1)}>Next</button>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

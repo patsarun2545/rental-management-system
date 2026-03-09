@@ -10,15 +10,26 @@ module.exports = {
   getDashboard: async (req, res) => {
     try {
       const now = new Date();
-      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const startOfToday = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+      );
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
       const [
-        totalUsers, totalProducts, totalRentals,
-        rentalsToday, rentalsThisMonth,
-        pendingRentals, activeRentals, lateRentals,
-        pendingPayments, lowStockVariants,
-        revenueThisMonth, revenueTotal,
+        totalUsers,
+        totalProducts,
+        totalRentals,
+        rentalsToday,
+        rentalsThisMonth,
+        pendingRentals,
+        activeRentals,
+        lateRentals,
+        pendingPayments,
+        lowStockVariants,
+        revenueThisMonth,
+        revenueTotal,
       ] = await Promise.all([
         prisma.user.count(),
         prisma.product.count({ where: { isDeleted: false, status: "ACTIVE" } }),
@@ -40,7 +51,11 @@ module.exports = {
           orderBy: { stock: "asc" },
         }),
         prisma.payment.aggregate({
-          where: { type: "RENTAL", status: "APPROVED", createdAt: { gte: startOfMonth } },
+          where: {
+            type: "RENTAL",
+            status: "APPROVED",
+            createdAt: { gte: startOfMonth },
+          },
           _sum: { amount: true },
         }),
         prisma.payment.aggregate({
@@ -51,12 +66,17 @@ module.exports = {
 
       return response.success(res, 200, "ข้อมูล Dashboard", {
         summary: {
-          totalUsers, totalProducts, totalRentals,
-          rentalsToday, rentalsThisMonth,
-          pendingRentals, activeRentals, lateRentals,
+          totalUsers,
+          totalProducts,
+          totalRentals,
+          rentalsToday,
+          rentalsThisMonth,
+          pendingRentals,
+          activeRentals,
+          lateRentals,
           pendingPayments,
-          revenueThisMonth: revenueThisMonth._sum.amount || 0,
-          revenueTotal: revenueTotal._sum.amount || 0,
+          revenueThisMonth: Number(revenueThisMonth._sum.amount) || 0,
+          revenueTotal: Number(revenueTotal._sum.amount) || 0,
         },
         lowStockVariants,
       });
@@ -72,7 +92,10 @@ module.exports = {
       const { page = 1, limit = 20 } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
 
-      const where = { status: { in: ["ACTIVE", "LATE"] }, endDate: { lt: now } };
+      const where = {
+        status: { in: ["ACTIVE", "LATE"] },
+        endDate: { lt: now },
+      };
 
       const [rentals, total] = await Promise.all([
         prisma.rental.findMany({
@@ -81,7 +104,9 @@ module.exports = {
           take: Number(limit),
           orderBy: { endDate: "asc" },
           include: {
-            user: { select: { id: true, name: true, email: true, phone: true } },
+            user: {
+              select: { id: true, name: true, email: true, phone: true },
+            },
             items: {
               include: {
                 variant: {
@@ -101,16 +126,20 @@ module.exports = {
       const enriched = rentals.map((r) => ({
         ...r,
         daysOverdue: Math.floor(
-          (now.getTime() - new Date(r.endDate).getTime()) / (1000 * 60 * 60 * 24),
+          (now.getTime() - new Date(r.endDate).getTime()) /
+            (1000 * 60 * 60 * 24),
         ),
         estimatedLateFee:
           Math.floor(
-            (now.getTime() - new Date(r.endDate).getTime()) / (1000 * 60 * 60 * 24),
+            (now.getTime() - new Date(r.endDate).getTime()) /
+              (1000 * 60 * 60 * 24),
           ) * (r.lateFeePerDay || 0),
       }));
 
       return response.success(res, 200, "รายการที่เกินกำหนดคืน", {
-        rentals: enriched, total, page: Number(page),
+        rentals: enriched,
+        total,
+        page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
     } catch (e) {
@@ -127,7 +156,9 @@ module.exports = {
         where: {
           type: "RENTAL",
           status: "APPROVED",
-          createdAt: { gte: new Date(now.getFullYear(), now.getMonth() - 11, 1) },
+          createdAt: {
+            gte: new Date(now.getFullYear(), now.getMonth() - 11, 1),
+          },
         },
         select: { amount: true, createdAt: true },
       });
@@ -142,10 +173,13 @@ module.exports = {
       for (const p of payments) {
         const d = new Date(p.createdAt);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        if (key in monthlyMap) monthlyMap[key] += p.amount;
+        if (key in monthlyMap) monthlyMap[key] += Number(p.amount);
       }
 
-      const monthly = Object.entries(monthlyMap).map(([month, revenue]) => ({ month, revenue }));
+      const monthly = Object.entries(monthlyMap).map(([month, revenue]) => ({
+        month,
+        revenue,
+      }));
       return response.success(res, 200, "รายงานรายได้รายเดือน", { monthly });
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
@@ -218,7 +252,9 @@ module.exports = {
       ]);
 
       return response.success(res, 200, "รายการ Audit Log", {
-        logs, total, page: Number(page),
+        logs,
+        total,
+        page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
     } catch (e) {
@@ -249,7 +285,8 @@ module.exports = {
       if (!beforeDate) return response.error(res, 400, "กรุณาระบุ beforeDate");
 
       const date = new Date(beforeDate);
-      if (isNaN(date.getTime())) return response.error(res, 400, "รูปแบบวันที่ไม่ถูกต้อง");
+      if (isNaN(date.getTime()))
+        return response.error(res, 400, "รูปแบบวันที่ไม่ถูกต้อง");
 
       const { count } = await prisma.auditLog.deleteMany({
         where: { createdAt: { lt: date } },

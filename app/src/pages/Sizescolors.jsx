@@ -7,47 +7,77 @@ import api from "../services/axios";
 // SIZES
 // ============================================================
 function Sizes() {
+  // =========================
+  // LIST STATE
+  // =========================
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // =========================
+  // FORM STATE
+  // =========================
   const [form, setForm] = useState({ id: null, name: "" });
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [open, setOpen] = useState(false);
 
+  // =========================
+  // DEBOUNCE SEARCH
+  // =========================
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // =========================
+  // FETCH
+  // =========================
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.get("/api/catalog/sizes", {
-        params: { search: search || undefined },
+        params: { page, limit, search: debouncedSearch || undefined },
       });
-      setData(res.data.result);
+      setData(res.data.result.data ?? res.data.result);
+      setTotal(res.data.result.total ?? res.data.result.length);
     } catch (e) {
       showError(e);
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
-    const t = setTimeout(fetchData, 300);
-    return () => clearTimeout(t);
+    fetchData();
   }, [fetchData]);
 
+  // =========================
+  // FORM HANDLERS
+  // =========================
   const clearForm = () => setForm({ id: null, name: "" });
 
   const handleSave = async () => {
     if (saving) return;
     if (!form.name.trim()) return showError("กรุณากรอกชื่อ size");
+
     try {
       setSaving(true);
       if (!form.id) {
         await api.post("/api/catalog/sizes", { name: form.name.trim() });
         showSuccess("เพิ่ม Size สำเร็จ");
       } else {
-        await api.put(`/api/catalog/sizes/${form.id}`, {
-          name: form.name.trim(),
-        });
+        await api.put(`/api/catalog/sizes/${form.id}`, { name: form.name.trim() });
         showSuccess("แก้ไข Size สำเร็จ");
       }
       clearForm();
@@ -62,18 +92,21 @@ function Sizes() {
 
   const handleRemove = async (item) => {
     if (removing) return;
+
     const confirmed = await showConfirm(
       "ยืนยันการลบ?",
       `ลบ Size "${item.name}"?`,
       "ลบ",
-      "ยกเลิก",
+      "ยกเลิก"
     );
     if (!confirmed) return;
+
     try {
       setRemoving(item.id);
       await api.delete(`/api/catalog/sizes/${item.id}`);
       showSuccess("ลบสำเร็จ");
-      fetchData();
+      if (data.length === 1 && page > 1) setPage((p) => p - 1);
+      else fetchData();
     } catch (e) {
       showError(e);
     } finally {
@@ -86,15 +119,15 @@ function Sizes() {
       <div className="card shadow-sm">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span>จัดการ Size</span>
-          {loading && (
-            <div className="spinner-border spinner-border-sm text-secondary" />
-          )}
+          {loading && <div className="spinner-border spinner-border-sm text-secondary" />}
         </div>
+
         <div className="card-body">
+          {/* SEARCH + ADD */}
           <div className="row mb-3 g-2">
             <div className="col-md-4">
               <input
-                className="form-control"
+                className="form-control rounded"
                 placeholder="ค้นหา size"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -103,16 +136,14 @@ function Sizes() {
             <div className="col-md-8 text-end">
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  clearForm();
-                  setOpen(true);
-                }}
+                onClick={() => { clearForm(); setOpen(true); }}
               >
                 + เพิ่ม Size
               </button>
             </div>
           </div>
 
+          {/* TABLE */}
           <div className="table-responsive">
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
@@ -120,65 +151,39 @@ function Sizes() {
                   <th>#</th>
                   <th>ชื่อ Size</th>
                   <th>ใช้ใน Variant</th>
-                  <th width="140" className="text-center">
-                    จัดการ
-                  </th>
+                  <th width="140" className="text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="4" className="text-center text-muted">
-                      กำลังโหลด...
-                    </td>
-                  </tr>
+                  <tr><td colSpan="4" className="text-center text-muted">กำลังโหลด...</td></tr>
                 ) : data.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center text-muted">
-                      ไม่มีข้อมูล
-                    </td>
-                  </tr>
+                  <tr><td colSpan="4" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
                 ) : (
                   data.map((item) => (
                     <tr key={item.id}>
                       <td>{item.id}</td>
                       <td>
-                        <span className="badge bg-secondary fs-6 fw-normal">
-                          {item.name}
-                        </span>
+                        <span className="badge bg-secondary fs-6 fw-normal">{item.name}</span>
                       </td>
                       <td>{item._count?.variants ?? 0}</td>
                       <td className="text-center">
                         <button
                           className="btn btn-outline-primary btn-sm me-2"
                           disabled={!!removing}
-                          onClick={() => {
-                            setForm({ id: item.id, name: item.name });
-                            setOpen(true);
-                          }}
+                          onClick={() => { setForm({ id: item.id, name: item.name }); setOpen(true); }}
                         >
                           แก้ไข
                         </button>
                         <button
                           className="btn btn-outline-danger btn-sm"
-                          disabled={
-                            !!removing || (item._count?.variants ?? 0) > 0
-                          }
+                          disabled={!!removing || (item._count?.variants ?? 0) > 0}
+                          title={(item._count?.variants ?? 0) > 0 ? "ไม่สามารถลบได้ มี variant ใช้งาน" : ""}
                           onClick={() => handleRemove(item)}
-                          title={
-                            (item._count?.variants ?? 0) > 0
-                              ? "ไม่สามารถลบได้ มี variant ใช้งาน"
-                              : ""
-                          }
                         >
                           {removing === item.id ? (
-                            <>
-                              <span className="spinner-border spinner-border-sm me-1" />
-                              ลบ...
-                            </>
-                          ) : (
-                            "ลบ"
-                          )}
+                            <><span className="spinner-border spinner-border-sm me-1" role="status" />ลบ...</>
+                          ) : "ลบ"}
                         </button>
                       </td>
                     </tr>
@@ -187,17 +192,34 @@ function Sizes() {
               </tbody>
             </table>
           </div>
+
+          {/* PAGINATION */}
+          <div className="mt-3 d-flex justify-content-center align-items-center">
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
+            <span>หน้า {page} / {totalPages}</span>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* MODAL */}
       <MyModal
         id="modalSize"
         title={form.id ? "แก้ไข Size" : "เพิ่ม Size"}
         open={open}
-        onClose={() => {
-          if (saving) return;
-          setOpen(false);
-        }}
+        onClose={() => { if (saving) return; setOpen(false); }}
       >
         <input
           className="form-control mb-3"
@@ -207,19 +229,10 @@ function Sizes() {
           onKeyDown={(e) => e.key === "Enter" && handleSave()}
           disabled={saving}
         />
-        <button
-          className="btn btn-primary w-100"
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <button className="btn btn-primary w-100" onClick={handleSave} disabled={saving}>
           {saving ? (
-            <>
-              <span className="spinner-border spinner-border-sm me-2" />
-              กำลังบันทึก...
-            </>
-          ) : (
-            "บันทึก"
-          )}
+            <><span className="spinner-border spinner-border-sm me-2" role="status" />กำลังบันทึก...</>
+          ) : "บันทึก"}
         </button>
       </MyModal>
     </>
@@ -230,38 +243,70 @@ function Sizes() {
 // COLORS
 // ============================================================
 function Colors() {
+  // =========================
+  // LIST STATE
+  // =========================
   const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  // =========================
+  // FORM STATE
+  // =========================
   const [form, setForm] = useState({ id: null, name: "", hex: "" });
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [open, setOpen] = useState(false);
 
+  // =========================
+  // DEBOUNCE SEARCH
+  // =========================
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // =========================
+  // FETCH
+  // =========================
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await api.get("/api/catalog/colors", {
-        params: { search: search || undefined },
+        params: { page, limit, search: debouncedSearch || undefined },
       });
-      setData(res.data.result);
+      setData(res.data.result.data ?? res.data.result);
+      setTotal(res.data.result.total ?? res.data.result.length);
     } catch (e) {
       showError(e);
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [page, debouncedSearch]);
 
   useEffect(() => {
-    const t = setTimeout(fetchData, 300);
-    return () => clearTimeout(t);
+    fetchData();
   }, [fetchData]);
 
+  // =========================
+  // FORM HANDLERS
+  // =========================
   const clearForm = () => setForm({ id: null, name: "", hex: "" });
 
   const handleSave = async () => {
     if (saving) return;
     if (!form.name.trim()) return showError("กรุณากรอกชื่อ color");
+
     try {
       setSaving(true);
       const payload = { name: form.name.trim(), hex: form.hex || undefined };
@@ -284,18 +329,21 @@ function Colors() {
 
   const handleRemove = async (item) => {
     if (removing) return;
+
     const confirmed = await showConfirm(
       "ยืนยันการลบ?",
       `ลบ Color "${item.name}"?`,
       "ลบ",
-      "ยกเลิก",
+      "ยกเลิก"
     );
     if (!confirmed) return;
+
     try {
       setRemoving(item.id);
       await api.delete(`/api/catalog/colors/${item.id}`);
       showSuccess("ลบสำเร็จ");
-      fetchData();
+      if (data.length === 1 && page > 1) setPage((p) => p - 1);
+      else fetchData();
     } catch (e) {
       showError(e);
     } finally {
@@ -308,15 +356,15 @@ function Colors() {
       <div className="card shadow-sm mt-4">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span>จัดการ Color</span>
-          {loading && (
-            <div className="spinner-border spinner-border-sm text-secondary" />
-          )}
+          {loading && <div className="spinner-border spinner-border-sm text-secondary" />}
         </div>
+
         <div className="card-body">
+          {/* SEARCH + ADD */}
           <div className="row mb-3 g-2">
             <div className="col-md-4">
               <input
-                className="form-control"
+                className="form-control rounded"
                 placeholder="ค้นหา color"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -325,16 +373,14 @@ function Colors() {
             <div className="col-md-8 text-end">
               <button
                 className="btn btn-primary"
-                onClick={() => {
-                  clearForm();
-                  setOpen(true);
-                }}
+                onClick={() => { clearForm(); setOpen(true); }}
               >
                 + เพิ่ม Color
               </button>
             </div>
           </div>
 
+          {/* TABLE */}
           <div className="table-responsive">
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
@@ -344,59 +390,38 @@ function Colors() {
                   <th>ชื่อ Color</th>
                   <th>Hex</th>
                   <th>ใช้ใน Variant</th>
-                  <th width="140" className="text-center">
-                    จัดการ
-                  </th>
+                  <th width="140" className="text-center">จัดการ</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr>
-                    <td colSpan="6" className="text-center text-muted">
-                      กำลังโหลด...
-                    </td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center text-muted">กำลังโหลด...</td></tr>
                 ) : data.length === 0 ? (
-                  <tr>
-                    <td colSpan="6" className="text-center text-muted">
-                      ไม่มีข้อมูล
-                    </td>
-                  </tr>
+                  <tr><td colSpan="6" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
                 ) : (
                   data.map((item) => (
                     <tr key={item.id}>
                       <td>{item.id}</td>
                       <td>
                         {item.hex ? (
-                          <div
-                            style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: 6,
-                              background: item.hex,
-                              border: "1px solid #dee2e6",
-                              display: "inline-block",
-                            }}
-                          />
+                          <div style={{
+                            width: 28, height: 28, borderRadius: 6,
+                            background: item.hex, border: "1px solid #dee2e6",
+                            display: "inline-block",
+                          }} />
                         ) : (
                           <span className="text-muted">-</span>
                         )}
                       </td>
                       <td>{item.name}</td>
-                      <td>
-                        <code>{item.hex || "-"}</code>
-                      </td>
+                      <td><code>{item.hex || "-"}</code></td>
                       <td>{item._count?.variants ?? 0}</td>
                       <td className="text-center">
                         <button
                           className="btn btn-outline-primary btn-sm me-2"
                           disabled={!!removing}
                           onClick={() => {
-                            setForm({
-                              id: item.id,
-                              name: item.name,
-                              hex: item.hex || "",
-                            });
+                            setForm({ id: item.id, name: item.name, hex: item.hex || "" });
                             setOpen(true);
                           }}
                         >
@@ -404,24 +429,13 @@ function Colors() {
                         </button>
                         <button
                           className="btn btn-outline-danger btn-sm"
-                          disabled={
-                            !!removing || (item._count?.variants ?? 0) > 0
-                          }
+                          disabled={!!removing || (item._count?.variants ?? 0) > 0}
+                          title={(item._count?.variants ?? 0) > 0 ? "ไม่สามารถลบได้ มี variant ใช้งาน" : ""}
                           onClick={() => handleRemove(item)}
-                          title={
-                            (item._count?.variants ?? 0) > 0
-                              ? "ไม่สามารถลบได้ มี variant ใช้งาน"
-                              : ""
-                          }
                         >
                           {removing === item.id ? (
-                            <>
-                              <span className="spinner-border spinner-border-sm me-1" />
-                              ลบ...
-                            </>
-                          ) : (
-                            "ลบ"
-                          )}
+                            <><span className="spinner-border spinner-border-sm me-1" role="status" />ลบ...</>
+                          ) : "ลบ"}
                         </button>
                       </td>
                     </tr>
@@ -430,17 +444,34 @@ function Colors() {
               </tbody>
             </table>
           </div>
+
+          {/* PAGINATION */}
+          <div className="mt-3 d-flex justify-content-center align-items-center">
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
+            <span>หน้า {page} / {totalPages}</span>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* MODAL */}
       <MyModal
         id="modalColor"
         title={form.id ? "แก้ไข Color" : "เพิ่ม Color"}
         open={open}
-        onClose={() => {
-          if (saving) return;
-          setOpen(false);
-        }}
+        onClose={() => { if (saving) return; setOpen(false); }}
       >
         <input
           className="form-control mb-2"
@@ -466,19 +497,10 @@ function Colors() {
             disabled={saving}
           />
         </div>
-        <button
-          className="btn btn-primary w-100"
-          onClick={handleSave}
-          disabled={saving}
-        >
+        <button className="btn btn-primary w-100" onClick={handleSave} disabled={saving}>
           {saving ? (
-            <>
-              <span className="spinner-border spinner-border-sm me-2" />
-              กำลังบันทึก...
-            </>
-          ) : (
-            "บันทึก"
-          )}
+            <><span className="spinner-border spinner-border-sm me-2" role="status" />กำลังบันทึก...</>
+          ) : "บันทึก"}
         </button>
       </MyModal>
     </>

@@ -16,18 +16,12 @@ export default function Types() {
 
   const [page, setPage] = useState(1);
   const limit = 10;
-
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // =========================
   // FORM STATE
   // =========================
-  const [form, setForm] = useState({
-    id: null,
-    name: "",
-    categoryId: "",
-  });
-
+  const [form, setForm] = useState({ id: null, name: "", categoryId: "" });
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [open, setOpen] = useState(false);
@@ -38,7 +32,8 @@ export default function Types() {
   const [categories, setCategories] = useState([]);
 
   useEffect(() => {
-    api.get("/api/catalog/categories", { params: { limit: 100 } })
+    api
+      .get("/api/catalog/categories", { params: { limit: 100 } })
       .then((r) => setCategories(r.data.result.data))
       .catch(() => {});
   }, []);
@@ -77,15 +72,12 @@ export default function Types() {
   }, [fetchData]);
 
   // =========================
-  // FORM HANDLER
+  // FORM HANDLERS
   // =========================
-  const clearForm = () => {
-    setForm({ id: null, name: "", categoryId: "" });
-  };
+  const clearForm = () => setForm({ id: null, name: "", categoryId: "" });
 
-  const handleChange = (key, value) => {
+  const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = async () => {
     if (saving) return;
@@ -131,11 +123,8 @@ export default function Types() {
       setRemoving(item.id);
       await api.delete(`/api/catalog/types/${item.id}`);
       showSuccess("ลบสำเร็จ");
-      if (data.length === 1 && page > 1) {
-        setPage((prev) => prev - 1);
-      } else {
-        fetchData();
-      }
+      if (data.length === 1 && page > 1) setPage((p) => p - 1);
+      else fetchData();
     } catch (e) {
       showError(e);
     } finally {
@@ -163,7 +152,10 @@ export default function Types() {
               />
             </div>
             <div className="col-md-8 text-end">
-              <button className="btn btn-primary" onClick={() => { clearForm(); setOpen(true); }}>
+              <button
+                className="btn btn-primary"
+                onClick={() => { clearForm(); setOpen(true); }}
+              >
                 + เพิ่มประเภท
               </button>
             </div>
@@ -174,6 +166,7 @@ export default function Types() {
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
                 <tr>
+                  <th>#</th>
                   <th>ชื่อประเภท</th>
                   <th>หมวดหมู่</th>
                   <th>สินค้า</th>
@@ -182,12 +175,13 @@ export default function Types() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="4" className="text-center text-muted">กำลังโหลด...</td></tr>
+                  <tr><td colSpan="5" className="text-center text-muted">กำลังโหลด...</td></tr>
                 ) : data.length === 0 ? (
-                  <tr><td colSpan="4" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
+                  <tr><td colSpan="5" className="text-center text-muted">ไม่มีข้อมูล</td></tr>
                 ) : (
                   data.map((item) => (
                     <tr key={item.id}>
+                      <td>{item.id}</td>
                       <td>{item.name}</td>
                       <td>{item.category?.name}</td>
                       <td>{item._count?.products ?? 0}</td>
@@ -218,9 +212,21 @@ export default function Types() {
 
           {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((prev) => prev - 1)}>Previous</button>
+            <button
+              className="btn btn-outline-secondary me-2"
+              disabled={page === 1 || loading}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Previous
+            </button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((prev) => prev + 1)}>Next</button>
+            <button
+              className="btn btn-outline-secondary ms-2"
+              disabled={page >= totalPages || loading}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

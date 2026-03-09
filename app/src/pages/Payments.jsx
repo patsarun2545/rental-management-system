@@ -348,9 +348,9 @@ export default function Payments() {
           }
           disabled={uploading}
         >
-          <option value="RENTAL">RENTAL</option>
-          <option value="DEPOSIT">DEPOSIT</option>
-          <option value="PENALTY">PENALTY</option>
+          <option value="RENTAL">ค่าเช่า</option>
+          <option value="DEPOSIT">เงินประกัน</option>
+          <option value="PENALTY">ค่าปรับ</option>
         </select>
         <label className="form-label">สลิป (ถ้ามี)</label>
         <input

@@ -308,9 +308,9 @@ export default function Returns() {
           </div>
 
           <div className="mt-3 d-flex justify-content-center align-items-center">
-            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)}>Previous</button>
+            <button className="btn btn-outline-secondary me-2" disabled={page === 1 || loading} onClick={() => setPage((p) => p - 1)}>ก่อนหน้า</button>
             <span>หน้า {page} / {totalPages}</span>
-            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>Next</button>
+            <button className="btn btn-outline-secondary ms-2" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>ถัดไป</button>
           </div>
         </div>
       </div>
@@ -437,9 +437,9 @@ export default function Returns() {
                       value={returnForm.condition}
                       onChange={(e) => setReturnForm((p) => ({ ...p, condition: e.target.value }))}
                       disabled={returnSaving}>
-                      <option value="GOOD">GOOD — ปกติ</option>
-                      <option value="DAMAGED">DAMAGED — เสียหาย</option>
-                      <option value="LOST">LOST — สูญหาย</option>
+                      <option value="GOOD">ปกติ</option>
+                      <option value="DAMAGED">เสียหาย</option>
+                      <option value="LOST">สูญหาย</option>
                     </select>
                     <label className="form-label">หมายเหตุ</label>
                     <textarea className="form-control mb-3" rows={2} placeholder="หมายเหตุ (ถ้ามี)"
@@ -507,9 +507,9 @@ export default function Returns() {
                   <label className="form-label small mb-1">ประเภท</label>
                   <select className="form-select form-select-sm mb-2" value={penaltyForm.type}
                     onChange={(e) => setPenaltyForm((p) => ({ ...p, type: e.target.value }))} disabled={penaltySaving}>
-                    <option value="LATE">LATE — ล่าช้า</option>
-                    <option value="DAMAGE">DAMAGE — เสียหาย</option>
-                    <option value="LOST">LOST — สูญหาย</option>
+                    <option value="LATE">ล่าช้า</option>
+                    <option value="DAMAGE">เสียหาย</option>
+                    <option value="LOST">สูญหาย</option>
                   </select>
                   <label className="form-label small mb-1">จำนวนเงิน (฿)</label>
                   <input type="number" className="form-control form-control-sm mb-2" placeholder="0"

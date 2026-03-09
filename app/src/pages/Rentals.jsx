@@ -13,6 +13,15 @@ const STATUS_COLORS = {
   CANCELLED: "secondary",
   COMPLETED: "dark",
 };
+const STATUS_LABELS = {
+  PENDING: "PENDING (รอดำเนินการ)",
+  CONFIRMED: "CONFIRMED (ยืนยันแล้ว)",
+  ACTIVE: "ACTIVE (กำลังเช่า)",
+  RETURNED: "RETURNED (คืนแล้ว)",
+  LATE: "LATE (เกินกำหนด)",
+  CANCELLED: "CANCELLED (ยกเลิก)",
+  COMPLETED: "COMPLETED (เสร็จสิ้น)",
+};
 const STATUSES = [
   "PENDING",
   "CONFIRMED",
@@ -537,7 +546,7 @@ export default function Rentals() {
                 <option value="">ทุกสถานะ</option>
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {s}
+                    {STATUS_LABELS[s] || s}
                   </option>
                 ))}
               </select>
@@ -629,7 +638,7 @@ export default function Rentals() {
                             className="btn btn-outline-info btn-sm me-1"
                             onClick={() => handleActivate(item)}
                           >
-                            Activate
+                            เปิดใช้งาน
                           </button>
                         )}
                         {item.status === "RETURNED" && (
@@ -637,7 +646,7 @@ export default function Rentals() {
                             className="btn btn-outline-dark btn-sm me-1"
                             onClick={() => handleComplete(item)}
                           >
-                            Complete
+                            ปิดการเช่า
                           </button>
                         )}
                         {item.status === "PENDING" && (
@@ -662,7 +671,7 @@ export default function Rentals() {
               disabled={page === 1 || loading}
               onClick={() => setPage((p) => p - 1)}
             >
-              Previous
+              ก่อนหน้า
             </button>
             <span>
               หน้า {page} / {totalPages}
@@ -672,7 +681,7 @@ export default function Rentals() {
               disabled={page >= totalPages || loading}
               onClick={() => setPage((p) => p + 1)}
             >
-              Next
+              ถัดไป
             </button>
           </div>
         </div>
@@ -717,7 +726,7 @@ export default function Rentals() {
                   className="btn btn-primary btn-sm"
                   onClick={() => handleActivate(mgmt)}
                 >
-                  ▶ Activate
+                  ▶ เปิดใช้งาน
                 </button>
               )}
               {mgmt.status === "RETURNED" && (
@@ -725,7 +734,7 @@ export default function Rentals() {
                   className="btn btn-dark btn-sm"
                   onClick={() => handleComplete(mgmt)}
                 >
-                  ✓ Complete
+                  ✓ ปิดการเช่า
                 </button>
               )}
             </div>
@@ -1185,7 +1194,7 @@ export default function Rentals() {
                       <option value="">-- เลือกสถานะ --</option>
                       {STATUSES.map((s) => (
                         <option key={s} value={s} disabled={s === mgmt.status}>
-                          {s}
+                          {STATUS_LABELS[s] || s}
                           {s === mgmt.status ? " (ปัจจุบัน)" : ""}
                         </option>
                       ))}
@@ -1228,9 +1237,9 @@ export default function Rentals() {
                       disabled={payStatusSaving}
                     >
                       <option value="">-- เลือกสถานะชำระ --</option>
-                      <option value="PENDING">PENDING</option>
-                      <option value="APPROVED">APPROVED</option>
-                      <option value="REJECTED">REJECTED</option>
+                      <option value="PENDING">รอดำเนินการ</option>
+                      <option value="APPROVED">อนุมัติแล้ว</option>
+                      <option value="REJECTED">ปฏิเสธแล้ว</option>
                     </select>
                     <button
                       className="btn btn-info text-white"
@@ -1293,7 +1302,7 @@ export default function Rentals() {
                       className="btn btn-dark w-100"
                       onClick={() => handleComplete(mgmt)}
                     >
-                      ✓ Complete การเช่า
+                      ✓ ปิดการเช่า การเช่า
                     </button>
                   </div>
                 )}
