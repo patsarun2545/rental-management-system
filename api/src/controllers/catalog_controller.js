@@ -115,7 +115,7 @@ module.exports = {
         where: { id },
         include: {
           types: true,
-          products: { where: { isDeleted: false } },
+          products: true, // รวม soft-deleted เพราะยังมี FK ชี้อยู่
         },
       });
 
@@ -124,7 +124,7 @@ module.exports = {
         return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีประเภทสินค้าอยู่ในหมวดหมู่นี้");
       }
       if (category.products.length > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้");
+        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้ (รวมสินค้าที่ถูกลบแล้ว)");
       }
 
       await prisma.category.delete({ where: { id } });
@@ -281,12 +281,12 @@ module.exports = {
 
       const type = await prisma.type.findUnique({
         where: { id },
-        include: { products: { where: { isDeleted: false } } },
+        include: { products: true }, // รวม soft-deleted เพราะยังมี FK ชี้อยู่
       });
 
       if (!type) return response.error(res, 404, "ไม่พบประเภท");
       if (type.products.length > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในประเภทนี้");
+        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในประเภทนี้ (รวมสินค้าที่ถูกลบแล้ว)");
       }
 
       await prisma.type.delete({ where: { id } });
@@ -354,6 +354,24 @@ module.exports = {
       });
 
       return response.success(res, 200, "ข้อมูล Size", sizes);
+    } catch (e) {
+      return response.error(res, 500, e.message);
+    }
+  },
+
+  // GET /catalog/sizes/:id
+  getSizeById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return response.error(res, 400, "รหัส size ไม่ถูกต้อง");
+
+      const size = await prisma.size.findUnique({
+        where: { id },
+        include: { _count: { select: { variants: true } } },
+      });
+
+      if (!size) return response.error(res, 404, "ไม่พบ size");
+      return response.success(res, 200, "ข้อมูล Size", size);
     } catch (e) {
       return response.error(res, 500, e.message);
     }
@@ -453,6 +471,24 @@ module.exports = {
       });
 
       return response.success(res, 200, "ข้อมูล Color", colors);
+    } catch (e) {
+      return response.error(res, 500, e.message);
+    }
+  },
+
+  // GET /catalog/colors/:id
+  getColorById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (isNaN(id)) return response.error(res, 400, "รหัส color ไม่ถูกต้อง");
+
+      const color = await prisma.color.findUnique({
+        where: { id },
+        include: { _count: { select: { variants: true } } },
+      });
+
+      if (!color) return response.error(res, 404, "ไม่พบ color");
+      return response.success(res, 200, "ข้อมูล Color", color);
     } catch (e) {
       return response.error(res, 500, e.message);
     }

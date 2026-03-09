@@ -51,6 +51,18 @@ module.exports = {
       });
       if (existReturn) return response.error(res, 400, "บันทึกการคืนแล้ว");
 
+      // ตรวจว่ายังมี payment PENDING ค้างอยู่หรือไม่ก่อนบันทึกการคืน
+      const pendingPayments = await prisma.payment.count({
+        where: { rentalId, status: "PENDING" },
+      });
+      if (pendingPayments > 0) {
+        return response.error(
+          res,
+          400,
+          "ยังมีรายการชำระเงินที่รอการตรวจสอบ กรุณาอนุมัติหรือปฏิเสธก่อน",
+        );
+      }
+
       const daysLate = Math.floor(
         (returnDate.getTime() - new Date(rental.endDate).getTime()) /
           (1000 * 60 * 60 * 24),
@@ -185,6 +197,66 @@ module.exports = {
     }
   },
 
+  // PATCH /rentals/:id/penalties/:penaltyId — Admin แก้ไขค่าปรับ
+  updatePenalty: async (req, res) => {
+    try {
+      const rentalId = Number(req.params.id);
+      const penaltyId = Number(req.params.penaltyId);
+      let { type, amount, note } = req.body;
+
+      const validTypes = ["LATE", "DAMAGE", "LOST"];
+
+      const penalty = await prisma.penalty.findFirst({
+        where: { id: penaltyId, rentalId },
+      });
+      if (!penalty) return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+
+      if (type && !validTypes.includes(type)) {
+        return response.error(res, 400, "ประเภทค่าปรับไม่ถูกต้อง (LATE / DAMAGE / LOST)");
+      }
+
+      if (amount !== undefined) {
+        if (isNaN(Number(amount)) || Number(amount) <= 0) {
+          return response.error(res, 400, "จำนวนเงินต้องมากกว่า 0");
+        }
+      }
+
+      const updated = await prisma.penalty.update({
+        where: { id: penaltyId },
+        data: {
+          type: type || undefined,
+          amount: amount !== undefined ? Number(amount) : undefined,
+          note: note !== undefined ? (note?.trim() || null) : undefined,
+        },
+      });
+
+      return response.success(res, 200, "แก้ไขค่าปรับสำเร็จ", updated);
+    } catch (e) {
+      if (e.code === "P2025") return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // DELETE /rentals/:id/penalties/:penaltyId — Admin ลบค่าปรับ
+  removePenalty: async (req, res) => {
+    try {
+      const rentalId = Number(req.params.id);
+      const penaltyId = Number(req.params.penaltyId);
+
+      const penalty = await prisma.penalty.findFirst({
+        where: { id: penaltyId, rentalId },
+      });
+      if (!penalty) return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+
+      await prisma.penalty.delete({ where: { id: penaltyId } });
+
+      return response.success(res, 200, "ลบค่าปรับสำเร็จ");
+    } catch (e) {
+      if (e.code === "P2025") return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
   // ============================================================
   // DEPOSIT (sub-resource of Rental)
   // ============================================================
@@ -227,11 +299,37 @@ module.exports = {
   // GET /deposits — Admin
   getAllDeposits: async (req, res) => {
     try {
-      const deposits = await prisma.deposit.findMany({
-        include: { rental: true },
-        orderBy: { createdAt: "desc" },
+      const { page = 1, limit = 20, status } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const validStatuses = ["HELD", "REFUNDED", "DEDUCTED"];
+      const where = status && validStatuses.includes(status) ? { status } : {};
+
+      const [deposits, total] = await Promise.all([
+        prisma.deposit.findMany({
+          where,
+          include: {
+            rental: {
+              select: {
+                id: true,
+                code: true,
+                status: true,
+                user: { select: { id: true, name: true, email: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          skip,
+          take: Number(limit),
+        }),
+        prisma.deposit.count({ where }),
+      ]);
+      return response.success(res, 200, "รายการมัดจำทั้งหมด", {
+        deposits,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
       });
-      return response.success(res, 200, "Success", deposits);
     } catch (e) {
       return response.error(res, 500, "Internal server error", e.message);
     }
@@ -241,12 +339,20 @@ module.exports = {
   getDepositByRental: async (req, res) => {
     try {
       const rentalId = Number(req.params.rentalId);
+
+      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
+
+      if (req.user.role !== "ADMIN" && rental.userId !== req.user.id) {
+        return response.error(res, 403, "ไม่มีสิทธิ์เข้าถึง");
+      }
+
       const deposit = await prisma.deposit.findUnique({
         where: { rentalId },
         include: { rental: true },
       });
-      if (!deposit) return response.error(res, 404, "Deposit not found");
-      return response.success(res, 200, "Success", deposit);
+      if (!deposit) return response.error(res, 404, "ไม่พบข้อมูลมัดจำ");
+      return response.success(res, 200, "ข้อมูลมัดจำ", deposit);
     } catch (e) {
       return response.error(res, 500, "Internal server error", e.message);
     }
@@ -264,6 +370,13 @@ module.exports = {
         Number(refundedAmount) < 0
       ) {
         return response.error(res, 400, "กรุณาระบุจำนวนเงินที่คืน");
+      }
+
+      const rentalForRefund = await prisma.rental.findUnique({ where: { id: rentalId } });
+      if (!rentalForRefund) return response.error(res, 404, "ไม่พบรายการเช่า");
+
+      if (rentalForRefund.status !== "RETURNED") {
+        return response.error(res, 400, "สามารถคืนมัดจำได้เฉพาะรายการที่คืนสินค้าแล้วเท่านั้น (status: RETURNED)");
       }
 
       const deposit = await prisma.deposit.findUnique({ where: { rentalId } });
@@ -307,6 +420,47 @@ module.exports = {
         "คืนมัดจำสำเร็จ — กรุณาปิดรายการเช่าผ่าน PATCH /rentals/:id/complete",
         updated,
       );
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // PATCH /rentals/:rentalId/deposit — Admin: แก้ไขยอดมัดจำ (เฉพาะ HELD)
+  updateDeposit: async (req, res) => {
+    try {
+      const rentalId = Number(req.params.rentalId);
+      let { amount } = req.body;
+      amount = Number(amount);
+
+      if (isNaN(amount) || amount <= 0) {
+        return response.error(res, 400, "จำนวนเงินต้องมากกว่า 0");
+      }
+
+      const deposit = await prisma.deposit.findUnique({ where: { rentalId } });
+      if (!deposit) return response.error(res, 404, "ไม่พบข้อมูลมัดจำ");
+
+      if (deposit.status !== "HELD") {
+        return response.error(res, 400, "ไม่สามารถแก้ไขมัดจำที่ดำเนินการแล้ว");
+      }
+
+      const updated = await prisma.$transaction(async (tx) => {
+        const dep = await tx.deposit.update({
+          where: { rentalId },
+          data: { amount },
+        });
+        await tx.rental.update({
+          where: { id: rentalId },
+          data: { depositAmount: amount },
+        });
+        return dep;
+      });
+
+      await auditLog(
+        `DEPOSIT_UPDATED: rental #${rentalId}, amount → ${amount} by admin #${req.user.id}`,
+        req.user.id,
+      );
+
+      return response.success(res, 200, "อัปเดตยอดมัดจำสำเร็จ", updated);
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }

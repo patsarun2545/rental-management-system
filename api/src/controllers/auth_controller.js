@@ -3,6 +3,9 @@ const response = require("../utils/response.utils");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 
+if (!process.env.SECRET_KEY) {
+  throw new Error("SECRET_KEY environment variable is not configured");
+}
 module.exports = {
   signUp: async (req, res) => {
     try {

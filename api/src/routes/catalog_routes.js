@@ -32,6 +32,7 @@ router.delete("/types/:id", auth, isAdmin, catalogController.deleteType);
 // ============================================================
 router.post("/sizes", auth, isAdmin, catalogController.createSize);
 router.get("/sizes", catalogController.getAllSizes);
+router.get("/sizes/:id", catalogController.getSizeById);
 router.put("/sizes/:id", auth, isAdmin, catalogController.updateSize);
 router.delete("/sizes/:id", auth, isAdmin, catalogController.deleteSize);
 
@@ -40,6 +41,7 @@ router.delete("/sizes/:id", auth, isAdmin, catalogController.deleteSize);
 // ============================================================
 router.post("/colors", auth, isAdmin, catalogController.createColor);
 router.get("/colors", catalogController.getAllColors);
+router.get("/colors/:id", catalogController.getColorById);
 router.put("/colors/:id", auth, isAdmin, catalogController.updateColor);
 router.delete("/colors/:id", auth, isAdmin, catalogController.deleteColor);
 

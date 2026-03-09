@@ -5,26 +5,20 @@ import { getImageUrl } from "../utils/image.utils";
 import api from "../services/axios";
 
 export default function Products() {
-  // =========================
   // LIST STATE
-  // =========================
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
-
+  const [showDeleted, setShowDeleted] = useState(false); // [NEW] toggle deleted view
   const [page, setPage] = useState(1);
   const limit = 10;
-
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
-  // =========================
   // FORM STATE
-  // =========================
   const [form, setForm] = useState({
     id: null,
     name: "",
@@ -35,14 +29,12 @@ export default function Products() {
     typeId: "",
     status: "ACTIVE",
   });
-
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(null);
+  const [restoring, setRestoring] = useState(null); // [NEW]
   const [open, setOpen] = useState(false);
 
-  // =========================
   // VARIANT STATE
-  // =========================
   const [variantProduct, setVariantProduct] = useState(null);
   const [variants, setVariants] = useState([]);
   const [variantOpen, setVariantOpen] = useState(false);
@@ -57,17 +49,13 @@ export default function Products() {
   const [varSaving, setVarSaving] = useState(false);
   const [varRemoving, setVarRemoving] = useState(null);
 
-  // =========================
-  // IMAGE STATE (ใช้ใน modal สร้าง/แก้ไข)
-  // =========================
-  const [images, setImages] = useState([]); // รูปที่มีอยู่ใน DB (กรณี edit)
-  const [imageFiles, setImageFiles] = useState([]); // ไฟล์ใหม่ที่รอ upload
-  const [imagePreviewUrls, setImagePreviewUrls] = useState([]); // preview ก่อน upload
+  // IMAGE STATE
+  const [images, setImages] = useState([]);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
   const [imageRemoving, setImageRemoving] = useState(null);
 
-  // =========================
-  // CATEGORIES / TYPES
-  // =========================
+  // CATEGORIES / TYPES / SIZES / COLORS
   const [categories, setCategories] = useState([]);
   const [types, setTypes] = useState([]);
   const [sizes, setSizes] = useState([]);
@@ -98,18 +86,12 @@ export default function Products() {
       .get("/api/catalog/sizes")
       .then((r) => setSizes(r.data.result))
       .catch(() => {});
-  }, []);
-
-  useEffect(() => {
     api
       .get("/api/catalog/colors")
       .then((r) => setColors(r.data.result))
       .catch(() => {});
   }, []);
 
-  // =========================
-  // DEBOUNCE SEARCH
-  // =========================
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -118,13 +100,11 @@ export default function Products() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // =========================
-  // FETCH
-  // =========================
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await api.get("/api/products", {
+      const endpoint = showDeleted ? "/api/products/deleted" : "/api/products";
+      const res = await api.get(endpoint, {
         params: {
           page,
           limit,
@@ -140,15 +120,12 @@ export default function Products() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, statusFilter, categoryFilter]);
+  }, [page, debouncedSearch, statusFilter, categoryFilter, showDeleted]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // =========================
-  // FORM HANDLER
-  // =========================
   const clearForm = () => {
     setForm({
       id: null,
@@ -165,15 +142,13 @@ export default function Products() {
     setImagePreviewUrls([]);
   };
 
-  const handleChange = (key, value) => {
+  const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
   const handleSave = async () => {
     if (saving) return;
     if (!form.name.trim() || !form.categoryId || !form.typeId)
       return showError("กรุณากรอกข้อมูลให้ครบ");
-
     try {
       setSaving(true);
       const payload = {
@@ -185,9 +160,7 @@ export default function Products() {
         typeId: form.typeId,
         status: form.status,
       };
-
       let productId = form.id;
-
       if (!form.id) {
         const res = await api.post("/api/products", payload);
         productId = res.data.result.id;
@@ -196,8 +169,6 @@ export default function Products() {
         await api.put(`/api/products/${form.id}`, payload);
         showSuccess("แก้ไขสำเร็จ");
       }
-
-      // อัปโหลดรูปใหม่ถ้ามี
       if (imageFiles.length > 0) {
         const formData = new FormData();
         imageFiles.forEach((f) => formData.append("images", f));
@@ -205,7 +176,6 @@ export default function Products() {
           headers: { "Content-Type": "multipart/form-data" },
         });
       }
-
       clearForm();
       setOpen(false);
       fetchData();
@@ -260,6 +230,28 @@ export default function Products() {
     }
   };
 
+  // [NEW] RESTORE SOFT-DELETED
+  const handleRestore = async (item) => {
+    if (restoring) return;
+    const confirmed = await showConfirm(
+      "กู้คืนสินค้า?",
+      `ต้องการกู้คืน "${item.name}" หรือไม่`,
+      "กู้คืน",
+      "ยกเลิก",
+    );
+    if (!confirmed) return;
+    try {
+      setRestoring(item.id);
+      await api.patch(`/api/products/${item.id}/restore`);
+      showSuccess("กู้คืนสำเร็จ");
+      fetchData();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setRestoring(null);
+    }
+  };
+
   const handleToggleStatus = async (item) => {
     try {
       await api.patch(`/api/products/${item.id}/status`);
@@ -270,9 +262,7 @@ export default function Products() {
     }
   };
 
-  // =========================
   // VARIANT HANDLER
-  // =========================
   const openVariants = async (product) => {
     setVariantProduct(product);
     setVarForm({
@@ -301,7 +291,6 @@ export default function Products() {
       stock: "",
       sku: "",
     });
-
   const handleVarChange = (key, value) =>
     setVarForm((prev) => ({ ...prev, [key]: value }));
 
@@ -311,7 +300,6 @@ export default function Products() {
       return showError("กรุณากรอกข้อมูลให้ครบ");
     if (!varForm.id && (!varForm.sizeId || !varForm.colorId))
       return showError("กรุณากรอก size และ color");
-
     try {
       setVarSaving(true);
       if (!varForm.id) {
@@ -362,9 +350,7 @@ export default function Products() {
     }
   };
 
-  // =========================
-  // IMAGE HANDLER (ใน modal สร้าง/แก้ไข)
-  // =========================
+  // IMAGE HANDLER
   const handleSetMain = async (img) => {
     try {
       await api.patch(`/api/products/images/${img.id}/main`);
@@ -401,15 +387,35 @@ export default function Products() {
       <div className="card mt-3 shadow-sm">
         <div className="card-header d-flex justify-content-between align-items-center">
           <span>จัดการสินค้า</span>
-          {loading && (
-            <div className="spinner-border spinner-border-sm text-secondary" />
-          )}
+          <div className="d-flex align-items-center gap-2">
+            {/* [NEW] TOGGLE DELETED */}
+            <div className="form-check form-switch mb-0">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id="showDeleted"
+                checked={showDeleted}
+                onChange={(e) => {
+                  setShowDeleted(e.target.checked);
+                  setPage(1);
+                }}
+              />
+              <label
+                className="form-check-label text-danger small"
+                htmlFor="showDeleted"
+              >
+                ดูสินค้าที่ลบแล้ว
+              </label>
+            </div>
+            {loading && (
+              <div className="spinner-border spinner-border-sm text-secondary" />
+            )}
+          </div>
         </div>
 
         <div className="card-body">
-          {/* FILTER + ADD */}
           <div className="row mb-3 g-2">
-            <div className="col-md-3">
+            <div className="col-md-4">
               <input
                 className="form-control rounded"
                 placeholder="ค้นหาสินค้า"
@@ -417,51 +423,63 @@ export default function Products() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="col-md-2">
-              <select
-                className="form-select"
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">ทุกสถานะ</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-              </select>
-            </div>
-            <div className="col-md-3">
-              <select
-                className="form-select"
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setPage(1);
-                }}
-              >
-                <option value="">ทุกหมวดหมู่</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-4 text-end">
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  clearForm();
-                  setOpen(true);
-                }}
-              >
-                + เพิ่มสินค้า
-              </button>
-            </div>
+            {!showDeleted && (
+              <>
+                <div className="col-md-3">
+                  <select
+                    className="form-select"
+                    value={statusFilter}
+                    onChange={(e) => {
+                      setStatusFilter(e.target.value);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="">ทุกสถานะ</option>
+                    <option value="ACTIVE">ACTIVE (เปิดใช้งาน)</option>
+                    <option value="INACTIVE">INACTIVE (ปิดใช้งาน)</option>
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <select
+                    className="form-select"
+                    value={categoryFilter}
+                    onChange={(e) => {
+                      setCategoryFilter(e.target.value);
+                      setPage(1);
+                    }}
+                  >
+                    <option value="">ทุกหมวดหมู่</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+            {!showDeleted && (
+              <div className="col-md-2 text-end">
+                <button
+                  className="btn btn-primary"
+                  onClick={() => {
+                    clearForm();
+                    setOpen(true);
+                  }}
+                >
+                  + เพิ่มสินค้า
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* TABLE */}
+          {showDeleted && (
+            <div className="alert alert-warning py-2 small mb-3">
+              ⚠ กำลังดูสินค้าที่ถูกลบ (Soft Delete) — กดปุ่ม{" "}
+              <strong>กู้คืน</strong> เพื่อนำสินค้ากลับมาใช้งาน
+            </div>
+          )}
+
           <div className="table-responsive">
             <table className="table table-bordered table-hover align-middle">
               <thead className="table-light">
@@ -472,8 +490,12 @@ export default function Products() {
                   <th>หมวดหมู่</th>
                   <th>ประเภท</th>
                   <th>ราคา</th>
-                  <th>สถานะ</th>
-                  <th width="220" className="text-center">
+                  {!showDeleted && <th>สถานะ</th>}
+                  {showDeleted && <th>ลบเมื่อ</th>}
+                  <th
+                    width={showDeleted ? "120" : "220"}
+                    className="text-center"
+                  >
                     จัดการ
                   </th>
                 </tr>
@@ -481,19 +503,22 @@ export default function Products() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="6" className="text-center text-muted">
+                    <td colSpan="8" className="text-center text-muted">
                       กำลังโหลด...
                     </td>
                   </tr>
                 ) : data.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center text-muted">
+                    <td colSpan="8" className="text-center text-muted">
                       ไม่มีข้อมูล
                     </td>
                   </tr>
                 ) : (
                   data.map((item) => (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className={showDeleted ? "table-secondary" : ""}
+                    >
                       <td className="text-center p-1">
                         {item.images?.find((img) => img.isMain)?.imageUrl ? (
                           <img
@@ -531,50 +556,77 @@ export default function Products() {
                       <td>{item.category?.name}</td>
                       <td>{item.type?.name}</td>
                       <td>{item.price}</td>
-                      <td>
-                        <span
-                          className={`badge bg-${item.status === "ACTIVE" ? "success" : "secondary"}`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
+                      {!showDeleted && (
+                        <td>
+                          <span
+                            className={`badge bg-${item.status === "ACTIVE" ? "success" : "secondary"}`}
+                          >
+                            {item.status}
+                          </span>
+                        </td>
+                      )}
+                      {showDeleted && (
+                        <td className="text-muted small">
+                          {item.deletedAt
+                            ? new Date(item.deletedAt).toLocaleDateString(
+                                "th-TH",
+                              )
+                            : "-"}
+                        </td>
+                      )}
                       <td className="text-center">
-                        <button
-                          className="btn btn-outline-primary btn-sm me-1"
-                          disabled={!!removing}
-                          onClick={() => handleEdit(item)}
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          className="btn btn-outline-warning btn-sm me-1"
-                          onClick={() => handleToggleStatus(item)}
-                        >
-                          {item.status === "ACTIVE" ? "ปิด" : "เปิด"}
-                        </button>
-                        <button
-                          className="btn btn-outline-info btn-sm me-1"
-                          onClick={() => openVariants(item)}
-                        >
-                          Variant
-                        </button>
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          disabled={!!removing}
-                          onClick={() => handleRemove(item)}
-                        >
-                          {removing === item.id ? (
-                            <>
-                              <span
-                                className="spinner-border spinner-border-sm me-1"
-                                role="status"
-                              />
-                              ลบ...
-                            </>
-                          ) : (
-                            "ลบ"
-                          )}
-                        </button>
+                        {showDeleted ? (
+                          <button
+                            className="btn btn-outline-success btn-sm"
+                            disabled={restoring === item.id}
+                            onClick={() => handleRestore(item)}
+                          >
+                            {restoring === item.id ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-1" />
+                                กู้คืน...
+                              </>
+                            ) : (
+                              "กู้คืน"
+                            )}
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className="btn btn-outline-primary btn-sm me-1"
+                              disabled={!!removing}
+                              onClick={() => handleEdit(item)}
+                            >
+                              แก้ไข
+                            </button>
+                            <button
+                              className="btn btn-outline-warning btn-sm me-1"
+                              onClick={() => handleToggleStatus(item)}
+                            >
+                              {item.status === "ACTIVE" ? "ปิด" : "เปิด"}
+                            </button>
+                            <button
+                              className="btn btn-outline-info btn-sm me-1"
+                              onClick={() => openVariants(item)}
+                            >
+                              Variant
+                            </button>
+                            <button
+                              className="btn btn-outline-danger btn-sm"
+                              disabled={!!removing}
+                              onClick={() => handleRemove(item)}
+                            >
+                              {removing === item.id ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-1" />
+                                  ลบ...
+                                </>
+                              ) : (
+                                "ลบ"
+                              )}
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -583,7 +635,6 @@ export default function Products() {
             </table>
           </div>
 
-          {/* PAGINATION */}
           <div className="mt-3 d-flex justify-content-center align-items-center">
             <button
               className="btn btn-outline-secondary me-2"
@@ -682,11 +733,8 @@ export default function Products() {
           <option value="INACTIVE">INACTIVE</option>
         </select>
 
-        {/* ===== IMAGES ===== */}
         <hr />
         <p className="fw-bold mb-2">รูปภาพสินค้า</p>
-
-        {/* รูปที่มีอยู่แล้ว (กรณี edit) */}
         {images.length > 0 && (
           <div className="row g-2 mb-3">
             {images.map((img) => (
@@ -730,10 +778,7 @@ export default function Products() {
                       onClick={() => handleImageRemove(img)}
                     >
                       {imageRemoving === img.id ? (
-                        <span
-                          className="spinner-border spinner-border-sm"
-                          role="status"
-                        />
+                        <span className="spinner-border spinner-border-sm" />
                       ) : (
                         "ลบ"
                       )}
@@ -744,8 +789,6 @@ export default function Products() {
             ))}
           </div>
         )}
-
-        {/* อัปโหลดรูปใหม่ */}
         <input
           type="file"
           className="form-control mb-1"
@@ -755,18 +798,16 @@ export default function Products() {
           onChange={(e) => {
             const files = Array.from(e.target.files);
             setImageFiles(files);
-            // revoke URLs เดิมก่อน สร้างใหม่
             imagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
             setImagePreviewUrls(files.map((f) => URL.createObjectURL(f)));
           }}
         />
-        {/* Preview รูปที่เลือกใหม่ */}
         {imagePreviewUrls.length > 0 && (
           <div className="row g-2 mb-2 mt-2">
             {imagePreviewUrls.map((url, i) => (
               <div key={i} className="col-4">
                 <div
-                  className="border rounded p-1 border-dashed"
+                  className="border rounded p-1"
                   style={{ borderStyle: "dashed" }}
                 >
                   <img
@@ -791,7 +832,6 @@ export default function Products() {
             เลือก {imageFiles.length} ไฟล์ — จะอัปโหลดพร้อมบันทึก
           </p>
         )}
-
         <button
           className="btn btn-primary w-100 mt-2"
           onClick={handleSave}
@@ -799,10 +839,7 @@ export default function Products() {
         >
           {saving ? (
             <>
-              <span
-                className="spinner-border spinner-border-sm me-2"
-                role="status"
-              />
+              <span className="spinner-border spinner-border-sm me-2" />
               กำลังบันทึก...
             </>
           ) : (
@@ -857,8 +894,8 @@ export default function Products() {
                         onClick={() =>
                           setVarForm({
                             id: v.id,
-                            size: v.size?.name,
-                            color: v.color?.name,
+                            size: v.sizeId?.name,
+                            color: v.colorId?.name,
                             price: v.price,
                             stock: v.stock,
                             sku: v.sku,
@@ -873,10 +910,7 @@ export default function Products() {
                         onClick={() => handleVarRemove(v)}
                       >
                         {varRemoving === v.id ? (
-                          <span
-                            className="spinner-border spinner-border-sm"
-                            role="status"
-                          />
+                          <span className="spinner-border spinner-border-sm" />
                         ) : (
                           "ลบ"
                         )}
@@ -960,10 +994,7 @@ export default function Products() {
           >
             {varSaving ? (
               <>
-                <span
-                  className="spinner-border spinner-border-sm me-2"
-                  role="status"
-                />
+                <span className="spinner-border spinner-border-sm me-2" />
                 กำลังบันทึก...
               </>
             ) : varForm.id ? (

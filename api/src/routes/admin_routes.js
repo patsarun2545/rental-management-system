@@ -5,6 +5,7 @@ const adminController = require("../controllers/admin_controller");
 const rentalController = require("../controllers/rental_controller");
 const returnController = require("../controllers/return_controller");
 const paymentController = require("../controllers/payment_controller");
+const userController = require("../controllers/user_controller");
 const auth = require("../middlewares/auth.middleware");
 const isAdmin = require("../middlewares/Isadmin.middleware");
 
@@ -36,11 +37,23 @@ router.get("/payments", paymentController.getAll);
 router.get("/reservations", rentalController.getAllReservations);
 router.get("/reservations/check", rentalController.checkAvailability);
 router.get("/reservations/:id", rentalController.getReservationById);
+router.delete("/reservations/:id", rentalController.deleteReservation);
 
 // ============================================================
 // INVOICES
 // ============================================================
 router.get("/invoices", paymentController.getAllInvoices);
+
+// ============================================================
+// ADDRESSES
+// ============================================================
+router.get("/addresses", userController.getAllAddresses);
+
+// ============================================================
+// STAFF (Admin profiles & their rentals)
+// ============================================================
+router.get("/staff/:adminId", rentalController.getAdminById);
+router.get("/staff/:adminId/rentals", rentalController.getRentalsByAdmin);
 
 // ============================================================
 // AUDIT LOG

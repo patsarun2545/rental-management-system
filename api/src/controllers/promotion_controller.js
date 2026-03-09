@@ -44,11 +44,20 @@ module.exports = {
   getById: async (req, res) => {
     try {
       const id = Number(req.params.id);
+      const isAdmin = req.user.role === "ADMIN";
 
       const promotion = await prisma.promotion.findUnique({ where: { id } });
 
       if (!promotion) {
         return response.error(res, 404, "ไม่พบโปรโมชัน");
+      }
+
+      // User เห็นเฉพาะโปรโมชันที่ยังใช้งานได้ ให้สอดคล้องกับ getAll
+      if (!isAdmin) {
+        const now = new Date();
+        if (promotion.startDate > now || promotion.endDate < now) {
+          return response.error(res, 404, "ไม่พบโปรโมชัน");
+        }
       }
 
       return response.success(res, 200, "ข้อมูลโปรโมชัน", promotion);
@@ -154,6 +163,22 @@ module.exports = {
   remove: async (req, res) => {
     try {
       const id = Number(req.params.id);
+
+      // ตรวจว่ามี rental ที่ยัง active ใช้ promotion นี้อยู่ไหม
+      const activeRental = await prisma.rental.findFirst({
+        where: {
+          promotionId: id,
+          status: { in: ["PENDING", "CONFIRMED", "ACTIVE", "LATE"] },
+        },
+        select: { id: true, code: true, status: true },
+      });
+      if (activeRental) {
+        return response.error(
+          res,
+          400,
+          `ไม่สามารถลบได้ เนื่องจากมีรายการเช่าที่ใช้โปรโมชันนี้อยู่ (${activeRental.code} - ${activeRental.status})`,
+        );
+      }
 
       await prisma.promotion.delete({ where: { id } });
 

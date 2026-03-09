@@ -167,6 +167,20 @@ module.exports = {
         return response.error(res, 400, "Role ไม่ถูกต้อง");
       }
 
+      // กัน admin ลด role ตัวเองหรือลด admin คนสุดท้าย
+      const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (!target) return response.error(res, 404, "ไม่พบผู้ใช้");
+
+      if (target.role === "ADMIN" && role !== "ADMIN") {
+        if (req.user.id === id) {
+          return response.error(res, 400, "ไม่สามารถลด role ตัวเองได้");
+        }
+        const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+        if (adminCount <= 1) {
+          return response.error(res, 400, "ไม่สามารถลด role ได้ เนื่องจากเป็น Admin คนสุดท้ายในระบบ");
+        }
+      }
+
       const user = await prisma.user.update({
         where: { id },
         data: { role },
@@ -184,6 +198,39 @@ module.exports = {
   remove: async (req, res) => {
     try {
       const id = Number(req.params.id);
+
+      const user = await prisma.user.findUnique({ where: { id } });
+      if (!user) return response.error(res, 404, "ไม่พบผู้ใช้");
+
+      // กัน admin ลบ account ตัวเองหรือลบ admin คนสุดท้าย
+      if (req.user.id === id) {
+        return response.error(res, 400, "ไม่สามารถลบ account ตัวเองได้");
+      }
+      const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
+      if (targetUser?.role === "ADMIN") {
+        const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+        if (adminCount <= 1) {
+          return response.error(res, 400, "ไม่สามารถลบ Admin คนสุดท้ายในระบบได้");
+        }
+      }
+
+      // ป้องกัน FK error: ตรวจ active rental ก่อนลบ
+      const activeRental = await prisma.rental.findFirst({
+        where: {
+          userId: id,
+          status: { in: ["PENDING", "CONFIRMED", "ACTIVE", "LATE"] },
+        },
+        select: { id: true, code: true, status: true },
+      });
+
+      if (activeRental) {
+        return response.error(
+          res,
+          400,
+          `ไม่สามารถลบผู้ใช้ได้ เนื่องจากมีรายการเช่าที่ยังดำเนินการอยู่ (${activeRental.code} - ${activeRental.status})`,
+        );
+      }
+
       await prisma.user.delete({ where: { id } });
       return response.success(res, 200, "ลบผู้ใช้สำเร็จ");
     } catch (e) {
@@ -193,8 +240,170 @@ module.exports = {
   },
 
   // ============================================================
+  // RENTAL (sub-resource of User)
+  // ============================================================
+
+  // GET /users/me/rentals — ดูประวัติเช่าของตัวเอง
+  getMyRentals: async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { page = 1, limit = 20, status } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const validStatuses = ["PENDING", "CONFIRMED", "ACTIVE", "RETURNED", "LATE", "CANCELLED", "COMPLETED"];
+      const where = {
+        userId,
+        ...(status && validStatuses.includes(status) && { status }),
+      };
+
+      const [rentals, total] = await Promise.all([
+        prisma.rental.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: "desc" },
+          include: {
+            promotion: true,
+            items: {
+              include: {
+                variant: {
+                  include: {
+                    product: {
+                      select: {
+                        id: true,
+                        name: true,
+                        brand: true,
+                        images: { where: { isMain: true }, select: { imageUrl: true }, take: 1 },
+                      },
+                    },
+                    size: { select: { id: true, name: true } },
+                    color: { select: { id: true, name: true, hex: true } },
+                  },
+                },
+              },
+            },
+            payments: { orderBy: { createdAt: "desc" } },
+            deposit: true,
+            penalties: true,
+            returnLog: true,
+            invoice: true,
+          },
+        }),
+        prisma.rental.count({ where }),
+      ]);
+
+      return response.success(res, 200, "ประวัติการเช่า", {
+        rentals,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
+      });
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // GET /users/:id/rentals — Admin: ดูประวัติเช่าของ user คนใดก็ได้
+  getRentalsByUser: async (req, res) => {
+    try {
+      const userId = Number(req.params.id);
+      const { page = 1, limit = 20, status } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) return response.error(res, 404, "ไม่พบผู้ใช้");
+
+      const validStatuses = ["PENDING", "CONFIRMED", "ACTIVE", "RETURNED", "LATE", "CANCELLED", "COMPLETED"];
+      const where = {
+        userId,
+        ...(status && validStatuses.includes(status) && { status }),
+      };
+
+      const [rentals, total] = await Promise.all([
+        prisma.rental.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { createdAt: "desc" },
+          include: {
+            promotion: true,
+            items: {
+              include: {
+                variant: {
+                  include: {
+                    product: {
+                      select: {
+                        id: true,
+                        name: true,
+                        brand: true,
+                        images: { where: { isMain: true }, select: { imageUrl: true }, take: 1 },
+                      },
+                    },
+                    size: { select: { id: true, name: true } },
+                    color: { select: { id: true, name: true, hex: true } },
+                  },
+                },
+              },
+            },
+            payments: { orderBy: { createdAt: "desc" } },
+            deposit: true,
+            penalties: true,
+            returnLog: true,
+            invoice: true,
+          },
+        }),
+        prisma.rental.count({ where }),
+      ]);
+
+      return response.success(res, 200, `ประวัติการเช่าของ ${user.name}`, {
+        user: { id: user.id, name: user.name, email: user.email },
+        rentals,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
+      });
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // ============================================================
   // ADDRESS (sub-resource of User)
   // ============================================================
+
+  // GET /addresses — Admin only: ดูที่อยู่ทั้งหมดในระบบ
+  getAllAddresses: async (req, res) => {
+    try {
+      const { page = 1, limit = 20, search = "" } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const where = search
+        ? { address: { contains: search, mode: "insensitive" } }
+        : {};
+
+      const [addresses, total] = await Promise.all([
+        prisma.address.findMany({
+          where,
+          skip,
+          take: Number(limit),
+          orderBy: { id: "desc" },
+          include: {
+            user: { select: { id: true, name: true, email: true } },
+          },
+        }),
+        prisma.address.count({ where }),
+      ]);
+
+      return response.success(res, 200, "รายการที่อยู่ทั้งหมด", {
+        addresses,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
+      });
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
 
   // GET /users/me/addresses
   getMyAddresses: async (req, res) => {
@@ -299,6 +508,48 @@ module.exports = {
 
       await prisma.address.delete({ where: { id } });
       return response.success(res, 200, "ลบที่อยู่สำเร็จ");
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // GET /users/:userId/addresses/:id — Admin or self
+  getAddressById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = Number(req.params.userId);
+
+      if (req.user.role !== "ADMIN" && req.user.id !== userId) {
+        return response.error(res, 403, "ไม่มีสิทธิ์เข้าถึง");
+      }
+
+      const address = await prisma.address.findUnique({ where: { id } });
+      if (!address) return response.error(res, 404, "ไม่พบที่อยู่");
+
+      if (address.userId !== userId) {
+        return response.error(res, 400, "ที่อยู่ไม่ตรงกับผู้ใช้");
+      }
+
+      return response.success(res, 200, "ข้อมูลที่อยู่", address);
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // GET /users/me/addresses/:id — self
+  getMyAddressById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = req.user.id;
+
+      const address = await prisma.address.findUnique({ where: { id } });
+      if (!address) return response.error(res, 404, "ไม่พบที่อยู่");
+
+      if (address.userId !== userId) {
+        return response.error(res, 403, "ไม่มีสิทธิ์เข้าถึง");
+      }
+
+      return response.success(res, 200, "ข้อมูลที่อยู่", address);
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }

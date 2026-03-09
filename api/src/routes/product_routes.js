@@ -26,10 +26,12 @@ router.delete("/images/:id", auth, isAdmin, productController.deleteImage);
 // ============================================================
 router.post("/", auth, isAdmin, productController.createProduct);
 router.get("/", productController.getAllProducts);
+router.get("/deleted", auth, isAdmin, productController.getDeletedProducts);
 router.get("/:id", productController.getProductById);
 router.put("/:id", auth, isAdmin, productController.updateProduct);
 router.delete("/:id", auth, isAdmin, productController.deleteProduct);
 router.patch("/:id/status", auth, isAdmin, productController.toggleStatus);
+router.patch("/:id/restore", auth, isAdmin, productController.restoreProduct);
 
 // ============================================================
 // VARIANT & IMAGE nested under /:productId — มาหลัง /:id ได้ เพราะ path ยาวกว่า

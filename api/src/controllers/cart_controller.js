@@ -72,13 +72,20 @@ module.exports = {
         return response.error(res, 400, "จำนวนต้องเป็นจำนวนเต็มมากกว่า 0");
       }
 
-      // ตรวจสอบ variant มีจริง
+      // ตรวจสอบ variant มีจริง และ product ยังใช้งานได้
       const variant = await prisma.productVariant.findUnique({
         where: { id: Number(productVariantId) },
+        include: {
+          product: { select: { isDeleted: true, status: true } },
+        },
       });
 
       if (!variant) {
         return response.error(res, 404, "ไม่พบสินค้า");
+      }
+
+      if (variant.product.isDeleted || variant.product.status !== "ACTIVE") {
+        return response.error(res, 400, "สินค้านี้ไม่พร้อมให้เช่าในขณะนี้");
       }
 
       if (variant.stock < Number(quantity)) {

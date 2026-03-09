@@ -164,19 +164,28 @@ module.exports = {
         take: Number(limit),
       });
 
-      const enriched = await Promise.all(
-        topVariants.map(async (v) => {
-          const variant = await prisma.productVariant.findUnique({
-            where: { id: v.productVariantId },
-            include: {
-              product: { select: { id: true, name: true, brand: true } },
-              size: true,
-              color: true,
-            },
-          });
-          return { ...variant, totalRented: v._sum.quantity };
-        }),
-      );
+      if (!topVariants.length) {
+        return response.success(res, 200, "สินค้าที่ถูกเช่าบ่อยที่สุด", []);
+      }
+
+      // ดึง variants ทั้งหมดใน query เดียว แทน N+1
+      const variantIds = topVariants.map((v) => v.productVariantId);
+      const variants = await prisma.productVariant.findMany({
+        where: { id: { in: variantIds } },
+        include: {
+          product: { select: { id: true, name: true, brand: true } },
+          size: true,
+          color: true,
+        },
+      });
+
+      const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+      // เรียงตามลำดับเดิม (groupBy ส่งมาเรียงตาม _sum.quantity แล้ว)
+      const enriched = topVariants.map((v) => ({
+        ...variantMap.get(v.productVariantId),
+        totalRented: v._sum.quantity,
+      }));
 
       return response.success(res, 200, "สินค้าที่ถูกเช่าบ่อยที่สุด", enriched);
     } catch (e) {

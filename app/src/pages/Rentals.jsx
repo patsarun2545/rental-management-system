@@ -67,7 +67,7 @@ export default function Rentals() {
     fetchData();
   }, [fetchData]);
 
-  // MANAGE MODAL — tabs: info | items | payment
+  // MANAGE MODAL — tabs: info | items | payment | actions
   const [mgmt, setMgmt] = useState(null);
   const [mgmtOpen, setMgmtOpen] = useState(false);
   const [mgmtTab, setMgmtTab] = useState("info");
@@ -166,7 +166,7 @@ export default function Rentals() {
   const handleRemoveItem = async (itemId) => {
     const ok = await showConfirm(
       "ลบสินค้า?",
-      "ต้องการลบรายการนี้ออกจาก rental?",
+      "ต้องการลบรายการนี้?",
       "ลบ",
       "ยกเลิก",
     );
@@ -258,7 +258,9 @@ export default function Rentals() {
     }
   };
 
+  // ============================================================
   // STATUS QUICK ACTIONS
+  // ============================================================
   const handleConfirm = async (item) => {
     const ok = await showConfirm(
       "ยืนยันการเช่า?",
@@ -313,6 +315,115 @@ export default function Rentals() {
       }
     } catch (e) {
       showError(e);
+    }
+  };
+
+  // ============================================================
+  // [NEW] COMPLETE
+  // ============================================================
+  const handleComplete = async (item) => {
+    const ok = await showConfirm(
+      "ปิดการเช่า?",
+      `ยืนยันปิดรายการเช่า "${item.code}"? (สถานะจะเปลี่ยนเป็น COMPLETED)`,
+      "ปิดการเช่า",
+      "ยกเลิก",
+    );
+    if (!ok) return;
+    try {
+      await api.patch(`/api/rentals/${item.id}/complete`);
+      showSuccess("ปิดการเช่าสำเร็จ");
+      fetchData();
+      if (mgmt?.id === item.id) await refreshMgmt();
+    } catch (e) {
+      showError(e);
+    }
+  };
+
+  // ============================================================
+  // [NEW] UPDATE STATUS (manual override)
+  // ============================================================
+  const [statusForm, setStatusForm] = useState({ status: "" });
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  const handleUpdateStatus = async () => {
+    if (statusSaving || !statusForm.status) return;
+    const ok = await showConfirm(
+      "เปลี่ยนสถานะ?",
+      `เปลี่ยนสถานะ "${mgmt.code}" เป็น ${statusForm.status}?`,
+      "ยืนยัน",
+      "ยกเลิก",
+    );
+    if (!ok) return;
+    try {
+      setStatusSaving(true);
+      await api.patch(`/api/rentals/${mgmt.id}/status`, {
+        status: statusForm.status,
+      });
+      showSuccess("เปลี่ยนสถานะสำเร็จ");
+      setStatusForm({ status: "" });
+      await refreshMgmt();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  // ============================================================
+  // [NEW] UPDATE PICKUP DATE
+  // ============================================================
+  const [pickupDate, setPickupDate] = useState("");
+  const [pickupSaving, setPickupSaving] = useState(false);
+
+  const handleUpdatePickup = async () => {
+    if (pickupSaving || !pickupDate) return;
+    const ok = await showConfirm(
+      "อัปเดตวันรับสินค้า?",
+      `ตั้งวันรับจริงเป็น ${new Date(pickupDate).toLocaleDateString("th-TH")}?`,
+      "ยืนยัน",
+      "ยกเลิก",
+    );
+    if (!ok) return;
+    try {
+      setPickupSaving(true);
+      await api.patch(`/api/rentals/${mgmt.id}/pickup`, { pickupDate });
+      showSuccess("อัปเดตวันรับสินค้าสำเร็จ");
+      setPickupDate("");
+      await refreshMgmt();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setPickupSaving(false);
+    }
+  };
+
+  // ============================================================
+  // [NEW] UPDATE PAYMENT STATUS (manual override)
+  // ============================================================
+  const [payStatusForm, setPayStatusForm] = useState({ paymentStatus: "" });
+  const [payStatusSaving, setPayStatusSaving] = useState(false);
+
+  const handleUpdatePaymentStatus = async () => {
+    if (payStatusSaving || !payStatusForm.paymentStatus) return;
+    const ok = await showConfirm(
+      "เปลี่ยนสถานะชำระ?",
+      `เปลี่ยนสถานะชำระเป็น ${payStatusForm.paymentStatus}?`,
+      "ยืนยัน",
+      "ยกเลิก",
+    );
+    if (!ok) return;
+    try {
+      setPayStatusSaving(true);
+      await api.patch(`/api/rentals/${mgmt.id}/payment-status`, {
+        paymentStatus: payStatusForm.paymentStatus,
+      });
+      showSuccess("อัปเดตสถานะชำระสำเร็จ");
+      setPayStatusForm({ paymentStatus: "" });
+      await refreshMgmt();
+    } catch (e) {
+      showError(e);
+    } finally {
+      setPayStatusSaving(false);
     }
   };
 
@@ -454,7 +565,7 @@ export default function Rentals() {
                   <th>วันคืน</th>
                   <th>ยอดรวม</th>
                   <th>สถานะ</th>
-                  <th className="text-center" width="220">
+                  <th className="text-center" width="260">
                     จัดการ
                   </th>
                 </tr>
@@ -521,6 +632,14 @@ export default function Rentals() {
                             Activate
                           </button>
                         )}
+                        {item.status === "RETURNED" && (
+                          <button
+                            className="btn btn-outline-dark btn-sm me-1"
+                            onClick={() => handleComplete(item)}
+                          >
+                            Complete
+                          </button>
+                        )}
                         {item.status === "PENDING" && (
                           <button
                             className="btn btn-outline-danger btn-sm"
@@ -572,17 +691,26 @@ export default function Rentals() {
       >
         {mgmt && (
           <>
+            {/* STATUS BADGE + QUICK ACTIONS */}
             <div className="d-flex align-items-center gap-2 mb-3 flex-wrap">
               <span className={`badge bg-${STATUS_COLORS[mgmt.status]} fs-6`}>
                 {mgmt.status}
               </span>
               {mgmt.status === "PENDING" && (
-                <button
-                  className="btn btn-success btn-sm"
-                  onClick={() => handleConfirm(mgmt)}
-                >
-                  ✓ ยืนยัน
-                </button>
+                <>
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => handleConfirm(mgmt)}
+                  >
+                    ✓ ยืนยัน
+                  </button>
+                  <button
+                    className="btn btn-outline-danger btn-sm"
+                    onClick={() => handleCancel(mgmt)}
+                  >
+                    ✕ ยกเลิก
+                  </button>
+                </>
               )}
               {mgmt.status === "CONFIRMED" && (
                 <button
@@ -592,12 +720,12 @@ export default function Rentals() {
                   ▶ Activate
                 </button>
               )}
-              {mgmt.status === "PENDING" && (
+              {mgmt.status === "RETURNED" && (
                 <button
-                  className="btn btn-outline-danger btn-sm"
-                  onClick={() => handleCancel(mgmt)}
+                  className="btn btn-dark btn-sm"
+                  onClick={() => handleComplete(mgmt)}
                 >
-                  ✕ ยกเลิก
+                  ✓ Complete
                 </button>
               )}
             </div>
@@ -610,6 +738,7 @@ export default function Rentals() {
                   key: "payment",
                   label: `ชำระเงิน (${mgmt.payments?.length || 0})`,
                 },
+                { key: "actions", label: "⚙ ตั้งค่า" },
               ].map((t) => (
                 <li key={t.key} className="nav-item">
                   <button
@@ -651,6 +780,12 @@ export default function Rentals() {
                   <div className="col-4">
                     <small className="text-muted d-block">วันรับ</small>
                     {new Date(mgmt.startDate).toLocaleDateString("th-TH")}
+                    {mgmt.pickupDate && (
+                      <div className="text-success small">
+                        รับจริง:{" "}
+                        {new Date(mgmt.pickupDate).toLocaleDateString("th-TH")}
+                      </div>
+                    )}
                   </div>
                   <div className="col-4">
                     <small className="text-muted d-block">วันคืน</small>
@@ -1027,12 +1162,141 @@ export default function Rentals() {
                     </button>
                   </div>
                 )}
-                {mgmt.payments?.length === 0 &&
-                  ["CANCELLED", "COMPLETED"].includes(mgmt.status) && (
-                    <p className="text-muted text-center mb-0">
-                      ไม่มีรายการชำระเงิน
+              </div>
+            )}
+
+            {/* ACTIONS TAB — [NEW] */}
+            {mgmtTab === "actions" && (
+              <div className="d-flex flex-column gap-3">
+                {/* UPDATE STATUS */}
+                <div className="border rounded p-3">
+                  <small className="text-muted fw-bold d-block mb-2">
+                    เปลี่ยนสถานะ (Manual Override)
+                  </small>
+                  <div className="d-flex gap-2">
+                    <select
+                      className="form-select"
+                      value={statusForm.status}
+                      onChange={(e) =>
+                        setStatusForm({ status: e.target.value })
+                      }
+                      disabled={statusSaving}
+                    >
+                      <option value="">-- เลือกสถานะ --</option>
+                      {STATUSES.map((s) => (
+                        <option key={s} value={s} disabled={s === mgmt.status}>
+                          {s}
+                          {s === mgmt.status ? " (ปัจจุบัน)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      className="btn btn-warning"
+                      onClick={handleUpdateStatus}
+                      disabled={statusSaving || !statusForm.status}
+                    >
+                      {statusSaving ? (
+                        <span className="spinner-border spinner-border-sm" />
+                      ) : (
+                        "อัปเดต"
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* UPDATE PAYMENT STATUS */}
+                <div className="border rounded p-3">
+                  <small className="text-muted fw-bold d-block mb-2">
+                    เปลี่ยนสถานะชำระเงิน
+                    <span className="ms-2 fw-normal text-muted">
+                      (ปัจจุบัน:{" "}
+                      <span
+                        className={`badge bg-${mgmt.paymentStatus === "APPROVED" ? "success" : "warning"}`}
+                      >
+                        {mgmt.paymentStatus}
+                      </span>
+                      )
+                    </span>
+                  </small>
+                  <div className="d-flex gap-2">
+                    <select
+                      className="form-select"
+                      value={payStatusForm.paymentStatus}
+                      onChange={(e) =>
+                        setPayStatusForm({ paymentStatus: e.target.value })
+                      }
+                      disabled={payStatusSaving}
+                    >
+                      <option value="">-- เลือกสถานะชำระ --</option>
+                      <option value="PENDING">PENDING</option>
+                      <option value="APPROVED">APPROVED</option>
+                      <option value="REJECTED">REJECTED</option>
+                    </select>
+                    <button
+                      className="btn btn-info text-white"
+                      onClick={handleUpdatePaymentStatus}
+                      disabled={payStatusSaving || !payStatusForm.paymentStatus}
+                    >
+                      {payStatusSaving ? (
+                        <span className="spinner-border spinner-border-sm" />
+                      ) : (
+                        "อัปเดต"
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* UPDATE PICKUP DATE */}
+                <div className="border rounded p-3">
+                  <small className="text-muted fw-bold d-block mb-2">
+                    บันทึกวันรับสินค้าจริง
+                    {mgmt.pickupDate && (
+                      <span className="ms-2 fw-normal text-success">
+                        (บันทึกแล้ว:{" "}
+                        {new Date(mgmt.pickupDate).toLocaleDateString("th-TH")})
+                      </span>
+                    )}
+                  </small>
+                  <div className="d-flex gap-2">
+                    <input
+                      type="datetime-local"
+                      className="form-control"
+                      value={pickupDate}
+                      onChange={(e) => setPickupDate(e.target.value)}
+                      disabled={pickupSaving}
+                    />
+                    <button
+                      className="btn btn-success"
+                      onClick={handleUpdatePickup}
+                      disabled={pickupSaving || !pickupDate}
+                    >
+                      {pickupSaving ? (
+                        <span className="spinner-border spinner-border-sm" />
+                      ) : (
+                        "บันทึก"
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* COMPLETE */}
+                {mgmt.status === "RETURNED" && (
+                  <div className="border rounded p-3 border-dark">
+                    <small className="text-muted fw-bold d-block mb-2">
+                      ปิดรายการเช่า
+                    </small>
+                    <p className="text-muted small mb-2">
+                      เปลี่ยนสถานะเป็น COMPLETED
+                      หลังจากดำเนินการทุกอย่างเสร็จสิ้นแล้ว
                     </p>
-                  )}
+                    <button
+                      className="btn btn-dark w-100"
+                      onClick={() => handleComplete(mgmt)}
+                    >
+                      ✓ Complete การเช่า
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </>

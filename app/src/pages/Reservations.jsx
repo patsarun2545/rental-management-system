@@ -89,7 +89,7 @@ export default function Reservations() {
         <div className="card-header">ตรวจสอบความพร้อมของ Stock</div>
         <div className="card-body">
           <div className="row g-2 align-items-end">
-            <div className="col-md-2">
+            <div className="col-md-4">
               <label className="form-label small text-muted">Variant ID</label>
               <input
                 type="number"
@@ -99,7 +99,7 @@ export default function Reservations() {
                 onChange={(e) => setCheckForm((p) => ({ ...p, productVariantId: e.target.value }))}
               />
             </div>
-            <div className="col-md-3">
+            <div className="col-md-2">
               <label className="form-label small text-muted">วันเริ่ม</label>
               <input
                 type="date"
@@ -108,7 +108,7 @@ export default function Reservations() {
                 onChange={(e) => setCheckForm((p) => ({ ...p, startDate: e.target.value }))}
               />
             </div>
-            <div className="col-md-3">
+            <div className="col-md-2">
               <label className="form-label small text-muted">วันสิ้นสุด</label>
               <input
                 type="date"

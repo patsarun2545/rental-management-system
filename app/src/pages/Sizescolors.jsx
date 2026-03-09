@@ -92,7 +92,7 @@ function Sizes() {
         </div>
         <div className="card-body">
           <div className="row mb-3 g-2">
-            <div className="col-md-5">
+            <div className="col-md-4">
               <input
                 className="form-control"
                 placeholder="ค้นหา size"
@@ -100,7 +100,7 @@ function Sizes() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="col-md-7 text-end">
+            <div className="col-md-8 text-end">
               <button
                 className="btn btn-primary"
                 onClick={() => {
@@ -314,7 +314,7 @@ function Colors() {
         </div>
         <div className="card-body">
           <div className="row mb-3 g-2">
-            <div className="col-md-5">
+            <div className="col-md-4">
               <input
                 className="form-control"
                 placeholder="ค้นหา color"
@@ -322,7 +322,7 @@ function Colors() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="col-md-7 text-end">
+            <div className="col-md-8 text-end">
               <button
                 className="btn btn-primary"
                 onClick={() => {

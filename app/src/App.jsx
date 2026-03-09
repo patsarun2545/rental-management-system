@@ -24,6 +24,7 @@ import Promotions from "./pages/Promotions";
 
 import Reports from "./pages/Reports";
 import AuditLogs from "./pages/AuditLogs";
+import Deposits from "./pages/Deposits";
 
 import AuthGuard from "./components/AuthGuard";
 import BaseLayout from "./layouts/BaseLayout";
@@ -56,6 +57,8 @@ const router = createBrowserRouter([
 
       { path: "/payments", element: <Payments /> },
       { path: "/promotions", element: <Promotions /> },
+
+      { path: "/deposits", element: <Deposits /> },
 
       { path: "/reports", element: <Reports /> },
       { path: "/audit", element: <AuditLogs /> },

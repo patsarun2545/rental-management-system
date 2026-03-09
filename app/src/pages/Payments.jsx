@@ -12,32 +12,14 @@ export default function Payments() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  const [page, setPage] = useState(1);
-  const limit = 10;
-
-  const totalPages = Math.max(1, Math.ceil(total / limit));
-
-  // =========================
-  // FILTER STATE
-  // =========================
   const [statusFilter, setStatusFilter] = useState("PENDING");
   const [typeFilter, setTypeFilter] = useState("");
   const [slipUrl, setSlipUrl] = useState("");
   const [slipOpen, setSlipOpen] = useState(false);
 
-  // =========================
-  // SLIP MODAL
-  // =========================
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [search]);
+  const [page, setPage] = useState(1);
+  const limit = 10;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // =========================
   // UPLOAD SLIP FORM
@@ -91,7 +73,6 @@ export default function Payments() {
           limit,
           status: statusFilter || undefined,
           type: typeFilter || undefined,
-          search: debouncedSearch || undefined,
         },
       });
       setData(res.data.result.payments || []);
@@ -101,7 +82,7 @@ export default function Payments() {
     } finally {
       setLoading(false);
     }
-  }, [page, statusFilter, typeFilter, debouncedSearch]);
+  }, [page, statusFilter, typeFilter]);
 
   useEffect(() => {
     fetchData();
@@ -158,17 +139,6 @@ export default function Payments() {
           {/* FILTER */}
           <div className="row mb-3 g-2">
             <div className="col-md-3">
-              <input
-                className="form-control"
-                placeholder="ค้นหา Rental Code"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setPage(1);
-                }}
-              />
-            </div>
-            <div className="col-md-3">
               <select
                 className="form-select"
                 value={statusFilter}
@@ -178,9 +148,9 @@ export default function Payments() {
                 }}
               >
                 <option value="">ทุกสถานะ</option>
-                <option value="PENDING">PENDING — รอตรวจ</option>
-                <option value="APPROVED">APPROVED — อนุมัติแล้ว</option>
-                <option value="REJECTED">REJECTED — ปฏิเสธแล้ว</option>
+                <option value="PENDING">PENDING (รอตรวจ)</option>
+                <option value="APPROVED">APPROVED (อนุมัติแล้ว)</option>
+                <option value="REJECTED">REJECTED (ปฏิเสธแล้ว)</option>
               </select>
             </div>
             <div className="col-md-3">
@@ -193,12 +163,12 @@ export default function Payments() {
                 }}
               >
                 <option value="">ทุกประเภท</option>
-                <option value="RENTAL">RENTAL</option>
-                <option value="DEPOSIT">DEPOSIT</option>
-                <option value="PENALTY">PENALTY</option>
+                <option value="RENTAL">RENTAL (ค่าเช่า)</option>
+                <option value="DEPOSIT">DEPOSIT (เงินประกัน)</option>
+                <option value="PENALTY">PENALTY (ค่าปรับ)</option>
               </select>
             </div>
-            <div className="col-md-3 text-end">
+            <div className="col-md-6 text-end">
               <button
                 className="btn btn-primary"
                 onClick={() => {

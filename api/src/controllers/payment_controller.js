@@ -66,6 +66,38 @@ module.exports = {
     }
   },
 
+  // GET /payments/:id — Admin or owner
+  getById: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      const payment = await prisma.payment.findUnique({
+        where: { id },
+        include: {
+          rental: {
+            select: {
+              id: true,
+              code: true,
+              status: true,
+              userId: true,
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      });
+
+      if (!payment) return response.error(res, 404, "ไม่พบรายการชำระเงิน");
+
+      if (req.user.role !== "ADMIN" && payment.rental.userId !== req.user.id) {
+        return response.error(res, 403, "ไม่มีสิทธิ์เข้าถึง");
+      }
+
+      return response.success(res, 200, "ข้อมูลการชำระเงิน", payment);
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
   // GET /payments/rental/:rentalId
   getByRentalId: async (req, res) => {
     try {
@@ -118,6 +150,27 @@ module.exports = {
         return response.error(res, 400, "ไม่สามารถชำระเงินรายการนี้ได้");
       }
 
+      // บล็อค payment type=RENTAL เมื่อชำระครบแล้ว
+      if (type === "RENTAL" && rental.paymentStatus === "APPROVED") {
+        return response.error(res, 400, "รายการเช่านี้ชำระเงินครบแล้ว");
+      }
+
+      // ป้องกัน duplicate slip — ถ้ามี PENDING payment ประเภทเดียวกันอยู่แล้ว ให้รอ admin ตรวจก่อน
+      const existingPending = await prisma.payment.findFirst({
+        where: {
+          rentalId: Number(rentalId),
+          type,
+          status: "PENDING",
+        },
+      });
+      if (existingPending) {
+        return response.error(
+          res,
+          409,
+          "มีรายการชำระเงินประเภทนี้รอการตรวจสอบอยู่แล้ว กรุณารอ Admin ยืนยันก่อน",
+        );
+      }
+
       const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
       const payment = await prisma.payment.create({
@@ -145,27 +198,32 @@ module.exports = {
   approve: async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const payment = await prisma.payment.findUnique({
-        where: { id },
-        include: { rental: true },
-      });
-      if (!payment) return response.error(res, 404, "ไม่พบรายการชำระเงิน");
 
-      if (payment.status !== "PENDING") {
-        return response.error(res, 400, "รายการนี้ถูกดำเนินการแล้ว");
-      }
+      // ตรวจว่า payment มีจริงก่อน (ยังไม่ lock)
+      const paymentCheck = await prisma.payment.findUnique({ where: { id } });
+      if (!paymentCheck) return response.error(res, 404, "ไม่พบรายการชำระเงิน");
 
       await prisma.$transaction(async (tx) => {
+        // lock payment row ภายใน transaction เพื่อป้องกัน race condition
+        // (admin 2 คนกด approve พร้อมกัน)
+        const locked = await tx.$queryRaw`
+          SELECT id, status, type, amount, "rentalId"
+          FROM "Payment" WHERE id = ${id} FOR UPDATE
+        `;
+        const payment = locked[0];
+        if (!payment) throw new Error("NOT_FOUND");
+        if (payment.status !== "PENDING") throw new Error("ALREADY_PROCESSED");
+
         await tx.payment.update({
           where: { id },
           data: { status: "APPROVED" },
         });
 
-        const rental = payment.rental;
+        const rental = await tx.rental.findUnique({
+          where: { id: payment.rentalId },
+        });
 
         if (payment.type === "DEPOSIT") {
-          // อัปเดต deposit ที่มีอยู่แล้ว (สร้างโดย Admin ผ่าน POST /rentals/:id/deposit)
-          // ถ้ายังไม่มี deposit record → สร้างใหม่อัตโนมัติจากการชำระ
           const existDeposit = await tx.deposit.findUnique({
             where: { rentalId: rental.id },
           });
@@ -173,10 +231,7 @@ module.exports = {
             if (existDeposit.status !== "HELD") {
               throw new Error("DEPOSIT_ALREADY_PROCESSED");
             }
-            // ไม่บวกซ้ำ — payment amount ถือเป็นหลักฐานการชำระ ไม่ใช่เพิ่มยอด
-            // deposit.amount ถูกกำหนดตอน Admin สร้าง deposit record แล้ว
           } else {
-            // Admin ยังไม่ได้สร้าง deposit record ล่วงหน้า → สร้างจาก payment ทันที
             await tx.deposit.create({
               data: {
                 rentalId: rental.id,
@@ -192,13 +247,19 @@ module.exports = {
         }
 
         if (payment.type === "RENTAL") {
-          const approvedPayments = await tx.payment.findMany({
-            where: { rentalId: rental.id, type: "RENTAL", status: "APPROVED" },
+          // ดึง approved payments ก่อนหน้า แล้วบวก payment ปัจจุบันเข้าไปด้วย
+          // เพื่อหลีกเลี่ยงปัญหา isolation level ที่อาจไม่เห็น update ในบรรทัดบน
+          const prevApproved = await tx.payment.findMany({
+            where: {
+              rentalId: rental.id,
+              type: "RENTAL",
+              status: "APPROVED",
+              NOT: { id },
+            },
           });
-          const totalPaid = approvedPayments.reduce(
-            (sum, p) => sum + p.amount,
-            0,
-          );
+          const totalPaid =
+            prevApproved.reduce((sum, p) => sum + p.amount, 0) +
+            payment.amount;
           if (totalPaid >= rental.totalPrice) {
             await tx.rental.update({
               where: { id: rental.id },
@@ -210,11 +271,15 @@ module.exports = {
 
       const updated = await prisma.payment.findUnique({ where: { id } });
       await auditLog(
-        `PAYMENT_APPROVED: payment #${id} (rental #${payment.rentalId}, type: ${payment.type}, amount: ${payment.amount}) approved by admin #${req.user.id}`,
+        `PAYMENT_APPROVED: payment #${id} (rental #${paymentCheck.rentalId}, type: ${paymentCheck.type}, amount: ${paymentCheck.amount}) approved by admin #${req.user.id}`,
         req.user.id,
       );
       return response.success(res, 200, "อนุมัติการชำระเงินสำเร็จ", updated);
     } catch (e) {
+      if (e.message === "NOT_FOUND")
+        return response.error(res, 404, "ไม่พบรายการชำระเงิน");
+      if (e.message === "ALREADY_PROCESSED")
+        return response.error(res, 400, "รายการนี้ถูกดำเนินการแล้ว");
       if (e.message === "DEPOSIT_ALREADY_PROCESSED") {
         return response.error(
           res,
@@ -237,12 +302,43 @@ module.exports = {
         return response.error(res, 400, "รายการนี้ถูกดำเนินการแล้ว");
       }
 
-      const updated = await prisma.payment.update({
-        where: { id },
-        data: { status: "REJECTED" },
+      await prisma.$transaction(async (tx) => {
+        await tx.payment.update({
+          where: { id },
+          data: { status: "REJECTED" },
+        });
+
+        // ถ้าเป็น payment ประเภท RENTAL ให้ตรวจว่า approved payments ที่เหลือ
+        // ยังครบ totalPrice หรือไม่ — ถ้าไม่ครบให้ reset paymentStatus กลับ PENDING
+        if (payment.type === "RENTAL") {
+          const rental = await tx.rental.findUnique({
+            where: { id: payment.rentalId },
+          });
+          if (rental) {
+            const approvedPayments = await tx.payment.findMany({
+              where: {
+                rentalId: payment.rentalId,
+                type: "RENTAL",
+                status: "APPROVED",
+              },
+            });
+            const totalApproved = approvedPayments.reduce(
+              (sum, p) => sum + p.amount,
+              0,
+            );
+            if (totalApproved < rental.totalPrice) {
+              await tx.rental.update({
+                where: { id: payment.rentalId },
+                data: { paymentStatus: "PENDING" },
+              });
+            }
+          }
+        }
       });
+
+      const updated = await prisma.payment.findUnique({ where: { id } });
       await auditLog(
-        `PAYMENT_REJECTED: payment #${id} (rental #${payment.rentalId}) rejected by admin #${req.user.id}`,
+        `PAYMENT_REJECTED: payment #${id} (rental #${payment.rentalId}, type: ${payment.type}, amount: ${payment.amount}) rejected by admin #${req.user.id}`,
         req.user.id,
       );
       return response.success(res, 200, "ปฏิเสธการชำระเงินสำเร็จ", updated);
@@ -364,6 +460,38 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
+    } catch (e) {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
+    }
+  },
+
+  // GET /invoices/:invoiceNo — Admin or owner
+  getInvoiceByNo: async (req, res) => {
+    try {
+      const { invoiceNo } = req.params;
+
+      const invoice = await prisma.invoice.findUnique({
+        where: { invoiceNo },
+        include: {
+          rental: {
+            select: {
+              id: true,
+              code: true,
+              status: true,
+              userId: true,
+              user: { select: { id: true, name: true, email: true } },
+            },
+          },
+        },
+      });
+
+      if (!invoice) return response.error(res, 404, "ไม่พบ Invoice");
+
+      if (req.user.role !== "ADMIN" && invoice.rental.userId !== req.user.id) {
+        return response.error(res, 403, "ไม่มีสิทธิ์เข้าถึง");
+      }
+
+      return response.success(res, 200, "ข้อมูล Invoice", invoice);
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }

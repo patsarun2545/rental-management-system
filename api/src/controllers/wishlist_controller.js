@@ -67,6 +67,10 @@ module.exports = {
         return response.error(res, 404, "ไม่พบสินค้า");
       }
 
+      if (product.status !== "ACTIVE") {
+        return response.error(res, 400, "สินค้านี้ไม่พร้อมให้บริการในขณะนี้");
+      }
+
       // ถ้ามีอยู่แล้ว → ไม่ต้องทำอะไร
       const existing = await prisma.wishlist.findUnique({
         where: {

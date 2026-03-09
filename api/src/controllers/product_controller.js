@@ -272,6 +272,59 @@ module.exports = {
     }
   },
 
+  // PATCH /products/:id/restore — Admin: กู้คืนสินค้าที่ถูก soft-delete
+  restoreProduct: async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+
+      const existing = await prisma.product.findFirst({
+        where: { id, isDeleted: true },
+      });
+      if (!existing) {
+        return response.error(res, 404, "ไม่พบสินค้าที่ถูกลบ");
+      }
+
+      const product = await prisma.product.update({
+        where: { id },
+        data: { isDeleted: false, deletedAt: null, status: "INACTIVE" },
+        include: { variants: true, images: true, category: true, type: true },
+      });
+
+      return response.success(res, 200, "กู้คืนสินค้าสำเร็จ (status: INACTIVE — กรุณาเปิดใช้งานเอง)", product);
+    } catch (e) {
+      return response.error(res, 500, e.message);
+    }
+  },
+
+  // GET /products/deleted — Admin: ดูรายการสินค้าที่ถูก soft-delete
+  getDeletedProducts: async (req, res) => {
+    try {
+      const { page = 1, limit = 10 } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({
+          where: { isDeleted: true },
+          include: {
+            category: true,
+            type: true,
+            images: { where: { isMain: true }, take: 1 },
+          },
+          orderBy: { deletedAt: "desc" },
+          skip,
+          take: Number(limit),
+        }),
+        prisma.product.count({ where: { isDeleted: true } }),
+      ]);
+
+      return response.success(res, 200, "สินค้าที่ถูกลบ", {
+        data: products, total, page: Number(page), limit: Number(limit),
+      });
+    } catch (e) {
+      return response.error(res, 500, e.message);
+    }
+  },
+
   // ============================================================
   // VARIANT (sub-resource of Product)
   // ============================================================
@@ -432,7 +485,35 @@ module.exports = {
       const variant = await prisma.productVariant.findUnique({ where: { id } });
       if (!variant) return response.error(res, 404, "ไม่พบ variant");
 
-      const updated = await prisma.productVariant.update({ where: { id }, data: { stock } });
+      // ตรวจว่า stock ใหม่ไม่น้อยกว่าจำนวนที่ reserve ไว้ในการเช่าที่ยัง active
+      // (stock ปัจจุบันสะท้อน available stock หลัง reserve แล้ว — ห้ามตั้งต่ำกว่า 0)
+      // นับ rentalItem ที่ยัง active/confirmed เพื่อเทียบ
+      const reservedQty = await prisma.rentalItem.aggregate({
+        where: {
+          productVariantId: id,
+          rental: { status: { in: ["CONFIRMED", "ACTIVE", "LATE"] } },
+        },
+        _sum: { quantity: true },
+      });
+      const reserved = reservedQty._sum.quantity || 0;
+
+      // stock จริงทั้งหมด = stock ปัจจุบัน (available) + reserved
+      // stock ใหม่ต้องไม่น้อยกว่า reserved
+      const currentTotal = variant.stock + reserved;
+      if (stock > currentTotal) {
+        // อนุญาตให้ตั้งสูงกว่าเดิมได้ปกติ
+      }
+      if (stock < reserved) {
+        return response.error(
+          res,
+          400,
+          `ไม่สามารถตั้ง stock ต่ำกว่าจำนวนที่จองไว้ (${reserved} ชิ้น)`,
+        );
+      }
+
+      // เก็บเป็น available stock (total - reserved)
+      const newAvailable = stock - reserved;
+      const updated = await prisma.productVariant.update({ where: { id }, data: { stock: newAvailable } });
       return response.success(res, 200, "แก้ไข stock สำเร็จ", updated);
     } catch (e) {
       return response.error(res, 500, e.message);
