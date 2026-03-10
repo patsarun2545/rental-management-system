@@ -1,4 +1,4 @@
-# 🧾 Dress Rental — Admin Panel
+# 🧾 Rental Management System
 
 A back-office admin panel for managing the full lifecycle of an online dress rental system, built with the **PERN Stack** (PostgreSQL, Express.js, React.js, Node.js).
 
