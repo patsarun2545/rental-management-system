@@ -109,6 +109,68 @@ export default function Signin() {
               สมัครสมาชิก
             </Link>
           </p>
+
+          <div
+            className="mt-4 p-3 rounded-3"
+            style={{ backgroundColor: "#f8f9fa", border: "1px dashed #dee2e6" }}
+          >
+            <div className="d-flex align-items-center justify-content-center gap-2 mb-2">
+              <p
+                className="text-muted mb-0"
+                style={{
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                🔑 บัญชีทดลองใช้
+              </p>
+              <span
+                className="badge"
+                style={{
+                  fontSize: "10px",
+                  backgroundColor: "#212529",
+                  color: "#fff",
+                  borderRadius: "6px",
+                  padding: "3px 8px",
+                }}
+              >
+                ADMIN
+              </span>
+            </div>
+            <div style={{ fontSize: "13px" }}>
+              <div className="d-flex justify-content-between mb-1">
+                <span className="text-muted">อีเมล</span>
+                <span
+                  className="fw-semibold text-dark"
+                  style={{ cursor: "pointer", userSelect: "all" }}
+                  onClick={() => handleChange("email", "admin@gmaio.com")}
+                >
+                  admin@gmail.com
+                </span>
+              </div>
+              <div className="d-flex justify-content-between">
+                <span className="text-muted">รหัสผ่าน</span>
+                <span
+                  className="fw-semibold text-dark"
+                  style={{ cursor: "pointer", userSelect: "all" }}
+                  onClick={() => handleChange("password", "Admin11111111")}
+                >
+                  Admin11111111
+                </span>
+              </div>
+            </div>
+            <button
+              className="btn btn-outline-secondary w-100 mt-2"
+              style={{ fontSize: "12px", height: "32px", borderRadius: "8px" }}
+              onClick={() => {
+                handleChange("email", "admin@gmail.com");
+                handleChange("password", "Admin11111111");
+              }}
+            >
+              กรอกข้อมูลอัตโนมัติ
+            </button>
+          </div>
         </div>
       </div>
     </div>
