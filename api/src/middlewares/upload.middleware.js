@@ -5,7 +5,7 @@ const fs = require("fs");
 // สร้างโฟลเดอร์ถ้ายังไม่มี
 const uploadPath = path.join(__dirname, "../assets/uploads");
 if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath);
+  fs.mkdirSync(uploadPath, { recursive: true });
 }
 
 // ตั้งค่า storage
@@ -14,8 +14,7 @@ const storage = multer.diskStorage({
     cb(null, uploadPath);
   },
   filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() + "-" + Math.round(Math.random() * 1e9);
+    const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueName + path.extname(file.originalname));
   },
 });
