@@ -115,8 +115,8 @@ module.exports = {
 
       res.cookie("token", token, {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax",
+        secure: true, 
+        sameSite: "none",
         maxAge: 4 * 60 * 60 * 1000,
       });
 
@@ -132,7 +132,11 @@ module.exports = {
 
   signOut: async (req, res) => {
     try {
-      res.clearCookie("token", { httpOnly: true, secure: false, sameSite: "lax" });
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+      });
       return response.success(res, 200, "Logout สำเร็จ");
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
