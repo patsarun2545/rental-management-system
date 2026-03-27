@@ -303,7 +303,5 @@ module.exports = {
 module.exports.log = async (action, userId = null) => {
   try {
     await prisma.auditLog.create({ data: { action, userId } });
-  } catch (_) {
-    // silent fail
-  }
+  } catch {}
 };

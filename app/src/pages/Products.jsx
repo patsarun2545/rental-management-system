@@ -202,7 +202,7 @@ export default function Products() {
     try {
       const res = await api.get(`/api/products/${item.id}/images`);
       setImages(res.data.result);
-    } catch (_) {
+    } catch {
       setImages([]);
     }
     setOpen(true);

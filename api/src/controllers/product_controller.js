@@ -8,7 +8,7 @@ const deleteImageFile = (imageUrl) => {
   try {
     const filePath = path.join(__dirname, "../assets", imageUrl);
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-  } catch (_) {}
+  } catch {}
 };
 
 // ============================================================
@@ -43,13 +43,19 @@ module.exports = {
         return response.error(res, 400, "status ต้องเป็น ACTIVE หรือ INACTIVE");
       }
 
-      if (!Array.isArray(variants)) return response.error(res, 400, "variants ต้องเป็น array");
-      if (!Array.isArray(images)) return response.error(res, 400, "images ต้องเป็น array");
+      if (!Array.isArray(variants))
+        return response.error(res, 400, "variants ต้องเป็น array");
+      if (!Array.isArray(images))
+        return response.error(res, 400, "images ต้องเป็น array");
 
-      const category = await prisma.category.findUnique({ where: { id: Number(categoryId) } });
+      const category = await prisma.category.findUnique({
+        where: { id: Number(categoryId) },
+      });
       if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
 
-      const type = await prisma.type.findUnique({ where: { id: Number(typeId) } });
+      const type = await prisma.type.findUnique({
+        where: { id: Number(typeId) },
+      });
       if (!type || type.categoryId !== Number(categoryId)) {
         return response.error(res, 400, "type ไม่อยู่ในหมวดหมู่ที่เลือก");
       }
@@ -60,26 +66,41 @@ module.exports = {
           return response.error(res, 400, "ข้อมูล variant ไม่ครบ");
         }
         if (isNaN(Number(v.price)) || isNaN(Number(v.stock ?? 0))) {
-          return response.error(res, 400, "price/stock ของ variant ต้องเป็นตัวเลข");
+          return response.error(
+            res,
+            400,
+            "price/stock ของ variant ต้องเป็นตัวเลข",
+          );
         }
         const key = `${v.sizeId}-${v.colorId}`;
-        if (combinationSet.has(key)) return response.error(res, 400, "มี size + color ซ้ำกันใน variants");
+        if (combinationSet.has(key))
+          return response.error(res, 400, "มี size + color ซ้ำกันใน variants");
         combinationSet.add(key);
 
-        const size = await prisma.size.findUnique({ where: { id: Number(v.sizeId) } });
+        const size = await prisma.size.findUnique({
+          where: { id: Number(v.sizeId) },
+        });
         if (!size) return response.error(res, 404, `ไม่พบ size id ${v.sizeId}`);
 
-        const color = await prisma.color.findUnique({ where: { id: Number(v.colorId) } });
-        if (!color) return response.error(res, 404, `ไม่พบ color id ${v.colorId}`);
+        const color = await prisma.color.findUnique({
+          where: { id: Number(v.colorId) },
+        });
+        if (!color)
+          return response.error(res, 404, `ไม่พบ color id ${v.colorId}`);
 
-        const existSku = await prisma.productVariant.findUnique({ where: { sku: v.sku } });
-        if (existSku) return response.error(res, 400, `SKU ${v.sku} ถูกใช้แล้ว`);
+        const existSku = await prisma.productVariant.findUnique({
+          where: { sku: v.sku },
+        });
+        if (existSku)
+          return response.error(res, 400, `SKU ${v.sku} ถูกใช้แล้ว`);
       }
 
       const product = await prisma.$transaction(async (tx) => {
         return await tx.product.create({
           data: {
-            name, description, brand,
+            name,
+            description,
+            brand,
             price: price !== undefined ? Number(price) : null,
             categoryId: Number(categoryId),
             typeId: Number(typeId),
@@ -96,7 +117,12 @@ module.exports = {
                 }
               : undefined,
             images: images.length
-              ? { create: images.map((img, i) => ({ imageUrl: img, isMain: i === 0 })) }
+              ? {
+                  create: images.map((img, i) => ({
+                    imageUrl: img,
+                    isMain: i === 0,
+                  })),
+                }
               : undefined,
           },
           include: { variants: true, images: true },
@@ -105,7 +131,8 @@ module.exports = {
 
       return response.success(res, 201, "เพิ่มสินค้าสำเร็จ", product);
     } catch (e) {
-      if (e.code === "P2002") return response.error(res, 400, "ข้อมูลซ้ำในระบบ");
+      if (e.code === "P2002")
+        return response.error(res, 400, "ข้อมูลซ้ำในระบบ");
       return response.error(res, 500, e.message);
     }
   },
@@ -114,8 +141,15 @@ module.exports = {
   getAllProducts: async (req, res) => {
     try {
       const {
-        search, categoryId, typeId, minPrice, maxPrice,
-        status, page = 1, limit = 10, sort = "desc",
+        search,
+        categoryId,
+        typeId,
+        minPrice,
+        maxPrice,
+        status,
+        page = 1,
+        limit = 10,
+        sort = "desc",
       } = req.query;
 
       const skip = (Number(page) - 1) * Number(limit);
@@ -131,7 +165,7 @@ module.exports = {
 
       const where = {
         isDeleted: false,
-        status: status === "" ? undefined : (status || "ACTIVE"),
+        status: status === "" ? undefined : status || "ACTIVE",
         name: search ? { contains: search, mode: "insensitive" } : undefined,
         categoryId: categoryId ? Number(categoryId) : undefined,
         typeId: typeId ? Number(typeId) : undefined,
@@ -155,7 +189,10 @@ module.exports = {
       ]);
 
       return response.success(res, 200, "ข้อมูลสินค้า", {
-        data: products, total, page: Number(page), limit: Number(limit),
+        data: products,
+        total,
+        page: Number(page),
+        limit: Number(limit),
       });
     } catch (e) {
       return response.error(res, 500, e.message);
@@ -186,7 +223,8 @@ module.exports = {
   updateProduct: async (req, res) => {
     try {
       const { id } = req.params;
-      const { name, description, brand, price, categoryId, typeId, status } = req.body;
+      const { name, description, brand, price, categoryId, typeId, status } =
+        req.body;
 
       const existing = await prisma.product.findFirst({
         where: { id: Number(id), isDeleted: false },
@@ -202,7 +240,9 @@ module.exports = {
       }
 
       if (categoryId && typeId) {
-        const type = await prisma.type.findUnique({ where: { id: Number(typeId) } });
+        const type = await prisma.type.findUnique({
+          where: { id: Number(typeId) },
+        });
         if (!type || type.categoryId !== Number(categoryId)) {
           return response.error(res, 400, "category / type ไม่สัมพันธ์กัน");
         }
@@ -211,7 +251,9 @@ module.exports = {
       const product = await prisma.product.update({
         where: { id: Number(id) },
         data: {
-          name, description, brand,
+          name,
+          description,
+          brand,
           price: price !== undefined ? Number(price) : undefined,
           categoryId: categoryId ? Number(categoryId) : undefined,
           typeId: typeId ? Number(typeId) : undefined,
@@ -239,7 +281,12 @@ module.exports = {
         data: { status: newStatus },
       });
 
-      return response.success(res, 200, `เปลี่ยนสถานะเป็น ${newStatus} สำเร็จ`, product);
+      return response.success(
+        res,
+        200,
+        `เปลี่ยนสถานะเป็น ${newStatus} สำเร็จ`,
+        product,
+      );
     } catch (e) {
       return response.error(res, 500, e.message);
     }
@@ -258,7 +305,11 @@ module.exports = {
         where: { variant: { productId: Number(req.params.id) } },
       });
       if (usedInRental) {
-        return response.error(res, 400, "ไม่สามารถลบสินค้าได้ เพราะมีการเช่าอยู่");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบสินค้าได้ เพราะมีการเช่าอยู่",
+        );
       }
 
       await prisma.product.update({
@@ -290,7 +341,12 @@ module.exports = {
         include: { variants: true, images: true, category: true, type: true },
       });
 
-      return response.success(res, 200, "กู้คืนสินค้าสำเร็จ (status: INACTIVE — กรุณาเปิดใช้งานเอง)", product);
+      return response.success(
+        res,
+        200,
+        "กู้คืนสินค้าสำเร็จ (status: INACTIVE — กรุณาเปิดใช้งานเอง)",
+        product,
+      );
     } catch (e) {
       return response.error(res, 500, e.message);
     }
@@ -318,7 +374,10 @@ module.exports = {
       ]);
 
       return response.success(res, 200, "สินค้าที่ถูกลบ", {
-        data: products, total, page: Number(page), limit: Number(limit),
+        data: products,
+        total,
+        page: Number(page),
+        limit: Number(limit),
       });
     } catch (e) {
       return response.error(res, 500, e.message);
@@ -332,22 +391,29 @@ module.exports = {
   // POST /products/:productId/variants
   createVariant: async (req, res) => {
     try {
-      let { sizeId, colorId, size, color, colorHex, price, stock, sku } = req.body;
+      let { sizeId, colorId, size, color, colorHex, price, stock, sku } =
+        req.body;
       const productId = Number(req.params.productId);
 
       price = Number(price);
       stock = stock !== undefined ? Number(stock) : 0;
       sku = sku?.trim();
 
-      if (!productId || isNaN(price) || !sku) return response.error(res, 400, "ข้อมูลไม่ครบ");
-      if (price < 0 || stock < 0) return response.error(res, 400, "price และ stock ต้อง >= 0");
+      if (!productId || isNaN(price) || !sku)
+        return response.error(res, 400, "ข้อมูลไม่ครบ");
+      if (price < 0 || stock < 0)
+        return response.error(res, 400, "price และ stock ต้อง >= 0");
 
-      const product = await prisma.product.findFirst({ where: { id: productId, isDeleted: false } });
+      const product = await prisma.product.findFirst({
+        where: { id: productId, isDeleted: false },
+      });
       if (!product) return response.error(res, 404, "ไม่พบสินค้า");
 
       let sizeRecord;
       if (sizeId) {
-        sizeRecord = await prisma.size.findUnique({ where: { id: Number(sizeId) } });
+        sizeRecord = await prisma.size.findUnique({
+          where: { id: Number(sizeId) },
+        });
         if (!sizeRecord) return response.error(res, 404, "ไม่พบ size");
       } else if (size) {
         sizeRecord = await prisma.size.upsert({
@@ -361,7 +427,9 @@ module.exports = {
 
       let colorRecord;
       if (colorId) {
-        colorRecord = await prisma.color.findUnique({ where: { id: Number(colorId) } });
+        colorRecord = await prisma.color.findUnique({
+          where: { id: Number(colorId) },
+        });
         if (!colorRecord) return response.error(res, 404, "ไม่พบ color");
       } else if (color) {
         colorRecord = await prisma.color.upsert({
@@ -373,16 +441,26 @@ module.exports = {
         return response.error(res, 400, "ต้องระบุ colorId หรือ color");
       }
 
-      const existSku = await prisma.productVariant.findUnique({ where: { sku } });
+      const existSku = await prisma.productVariant.findUnique({
+        where: { sku },
+      });
       if (existSku) return response.error(res, 400, "SKU นี้ถูกใช้แล้ว");
 
       const existVariant = await prisma.productVariant.findFirst({
         where: { productId, sizeId: sizeRecord.id, colorId: colorRecord.id },
       });
-      if (existVariant) return response.error(res, 400, "variant นี้มีอยู่แล้ว");
+      if (existVariant)
+        return response.error(res, 400, "variant นี้มีอยู่แล้ว");
 
       const variant = await prisma.productVariant.create({
-        data: { productId, sizeId: sizeRecord.id, colorId: colorRecord.id, price, stock, sku },
+        data: {
+          productId,
+          sizeId: sizeRecord.id,
+          colorId: colorRecord.id,
+          price,
+          stock,
+          sku,
+        },
         include: { product: true, size: true, color: true },
       });
 
@@ -396,7 +474,8 @@ module.exports = {
   getVariantsByProduct: async (req, res) => {
     try {
       const productId = Number(req.params.productId);
-      if (!productId || isNaN(productId)) return response.error(res, 400, "productId ไม่ถูกต้อง");
+      if (!productId || isNaN(productId))
+        return response.error(res, 400, "productId ไม่ถูกต้อง");
 
       const variants = await prisma.productVariant.findMany({
         where: { productId },
@@ -443,19 +522,23 @@ module.exports = {
 
       if (price !== undefined) {
         price = Number(price);
-        if (isNaN(price) || price < 0) return response.error(res, 400, "price ต้องมากกว่าหรือเท่ากับ 0");
+        if (isNaN(price) || price < 0)
+          return response.error(res, 400, "price ต้องมากกว่าหรือเท่ากับ 0");
         data.price = price;
       }
 
       if (stock !== undefined) {
         stock = Number(stock);
-        if (isNaN(stock) || stock < 0) return response.error(res, 400, "stock ต้องมากกว่าหรือเท่ากับ 0");
+        if (isNaN(stock) || stock < 0)
+          return response.error(res, 400, "stock ต้องมากกว่าหรือเท่ากับ 0");
         data.stock = stock;
       }
 
       if (sku !== undefined) {
         sku = sku.trim();
-        const existSku = await prisma.productVariant.findFirst({ where: { sku, NOT: { id } } });
+        const existSku = await prisma.productVariant.findFirst({
+          where: { sku, NOT: { id } },
+        });
         if (existSku) return response.error(res, 400, "SKU นี้ถูกใช้แล้ว");
         data.sku = sku;
       }
@@ -480,7 +563,8 @@ module.exports = {
 
       let { stock } = req.body;
       stock = Number(stock);
-      if (isNaN(stock) || stock < 0) return response.error(res, 400, "stock ต้องมากกว่าหรือเท่ากับ 0");
+      if (isNaN(stock) || stock < 0)
+        return response.error(res, 400, "stock ต้องมากกว่าหรือเท่ากับ 0");
 
       const variant = await prisma.productVariant.findUnique({ where: { id } });
       if (!variant) return response.error(res, 404, "ไม่พบ variant");
@@ -513,7 +597,10 @@ module.exports = {
 
       // เก็บเป็น available stock (total - reserved)
       const newAvailable = stock - reserved;
-      const updated = await prisma.productVariant.update({ where: { id }, data: { stock: newAvailable } });
+      const updated = await prisma.productVariant.update({
+        where: { id },
+        data: { stock: newAvailable },
+      });
       return response.success(res, 200, "แก้ไข stock สำเร็จ", updated);
     } catch (e) {
       return response.error(res, 500, e.message);
@@ -536,7 +623,11 @@ module.exports = {
       ]);
 
       if (usedInRental || usedInCart || usedInReservation) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจาก variant มีการใช้งานอยู่");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจาก variant มีการใช้งานอยู่",
+        );
       }
 
       await prisma.productVariant.delete({ where: { id } });
@@ -556,7 +647,11 @@ module.exports = {
       const productId = Number(req.params.productId);
 
       if (!req.files || req.files.length === 0) {
-        return response.error(res, 400, "กรุณาอัปโหลดไฟล์รูปภาพอย่างน้อย 1 ไฟล์");
+        return response.error(
+          res,
+          400,
+          "กรุณาอัปโหลดไฟล์รูปภาพอย่างน้อย 1 ไฟล์",
+        );
       }
 
       const product = await prisma.product.findFirst({
@@ -588,10 +683,16 @@ module.exports = {
         orderBy: [{ isMain: "desc" }, { id: "asc" }],
       });
 
-      return response.success(res, 201, `อัปโหลด ${req.files.length} รูปสำเร็จ`, created);
+      return response.success(
+        res,
+        201,
+        `อัปโหลด ${req.files.length} รูปสำเร็จ`,
+        created,
+      );
     } catch (e) {
       // cleanup ไฟล์ที่อัปโหลดมาแล้วถ้า error
-      if (req.files) req.files.forEach((f) => deleteImageFile(`/uploads/${f.filename}`));
+      if (req.files)
+        req.files.forEach((f) => deleteImageFile(`/uploads/${f.filename}`));
       return response.error(res, 500, e.message);
     }
   },
@@ -621,7 +722,10 @@ module.exports = {
           where: { productId: image.productId },
           data: { isMain: false },
         });
-        return await tx.productImage.update({ where: { id }, data: { isMain: true } });
+        return await tx.productImage.update({
+          where: { id },
+          data: { isMain: true },
+        });
       });
 
       return response.success(res, 200, "ตั้งรูปหลักสำเร็จ", updated);
@@ -682,7 +786,10 @@ module.exports = {
             where: { productId: image.productId },
           });
           if (firstImage) {
-            await tx.productImage.update({ where: { id: firstImage.id }, data: { isMain: true } });
+            await tx.productImage.update({
+              where: { id: firstImage.id },
+              data: { isMain: true },
+            });
           }
         }
       });
