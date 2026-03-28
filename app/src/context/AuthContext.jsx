@@ -9,16 +9,21 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const fetchMe = async () => {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setLoading(false);
+        return;
+      }
       try {
         const res = await api.get("/api/auth/me");
         setUser(res.data.result);
       } catch {
+        localStorage.removeItem("token");
         setUser(null);
       } finally {
         setLoading(false);
       }
     };
-
     fetchMe();
   }, []);
 

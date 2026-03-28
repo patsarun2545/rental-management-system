@@ -23,6 +23,7 @@ export default function Signin() {
       });
 
       const userData = res.data.result;
+      localStorage.setItem("token", userData.token);
 
       if (userData.role !== "ADMIN") {
         showError("ไม่มีสิทธิ์เข้าใช้งานระบบนี้");

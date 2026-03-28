@@ -115,7 +115,7 @@ module.exports = {
 
       res.cookie("token", token, {
         httpOnly: true,
-        secure: true, 
+        secure: true,
         sameSite: "none",
         maxAge: 4 * 60 * 60 * 1000,
       });
@@ -124,6 +124,7 @@ module.exports = {
         id: user.id,
         name: user.name,
         role: user.role,
+        token,
       });
     } catch (e) {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
@@ -134,8 +135,8 @@ module.exports = {
     try {
       res.clearCookie("token", {
         httpOnly: true,
-        secure: false,
-        sameSite: "lax",
+        secure: true,
+        sameSite: "none",
       });
       return response.success(res, 200, "Logout สำเร็จ");
     } catch (e) {

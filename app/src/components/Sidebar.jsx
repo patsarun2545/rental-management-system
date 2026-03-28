@@ -48,6 +48,7 @@ export default function Sidebar() {
       );
       if (confirmed) {
         await api.post("/api/auth/signOut");
+        localStorage.removeItem("token"); // ← เพิ่มบรรทัดนี้
         setUser(null);
         showSuccess("ออกจากระบบสำเร็จ");
         navigate("/");
