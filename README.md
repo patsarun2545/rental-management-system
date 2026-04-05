@@ -1,5 +1,7 @@
 # 🧾 Rental Management System (RMS)
 
+[![Live Demo](https://img.shields.io/badge/Live-Demo-000?style=flat-square&logo=vercel&logoColor=white)](https://rental-management-system-blush.vercel.app/)
+
 A backend admin system for managing dress/costume rentals — covering inventory, rentals, payments, deposits, penalties, reports, and audit logs.
 
 ---
