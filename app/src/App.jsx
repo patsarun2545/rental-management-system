@@ -1,5 +1,6 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AuthProvider } from "./context/AuthContext";
+import { Analytics } from "@vercel/analytics/react";
 
 import Signin from "./pages/Signin";
 import SignUp from "./pages/Signup";
@@ -75,6 +76,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RouterProvider router={router} />
+      <Analytics />
     </AuthProvider>
   );
 }
