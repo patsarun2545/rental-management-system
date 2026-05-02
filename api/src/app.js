@@ -14,6 +14,8 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/uploads", express.static(path.join(__dirname, "assets/uploads")));
 
+app.get("/ping", (req, res) => res.status(200).json({ ok: true }));
+
 app.use("/api", routes);
 
 app.use((req, res) => {
