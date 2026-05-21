@@ -53,7 +53,7 @@ module.exports = {
         items: cart.items,
         total,
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -62,23 +62,33 @@ module.exports = {
   addItem: async (req, res) => {
     try {
       const userId = req.user.id;
-      const { productVariantId, quantity = 1 } = req.body;
+      const { productVariantId, quantity } = req.body;
 
-      if (!productVariantId) {
-        return response.error(res, 400, "กรุณาระบุ productVariantId");
+      if (!productVariantId || !quantity) {
+        return response.error(
+          res,
+          400,
+          "กรุณาระบุ productVariantId และ quantity",
+        );
       }
 
-      if (!Number.isInteger(Number(quantity)) || Number(quantity) < 1) {
-        return response.error(res, 400, "จำนวนต้องเป็นจำนวนเต็มมากกว่า 0");
+      if (Number(quantity) < 1) {
+        return response.error(res, 400, "quantity ต้องมากกว่า 0");
       }
 
-      // ตรวจสอบ variant มีจริง และ product ยังใช้งานได้
-      const variant = await prisma.productVariant.findUnique({
-        where: { id: Number(productVariantId) },
-        include: {
-          product: { select: { isDeleted: true, status: true } },
-        },
-      });
+      const [variant, cart] = await Promise.all([
+        prisma.productVariant.findUnique({
+          where: { id: Number(productVariantId) },
+          include: {
+            product: { select: { isDeleted: true, status: true } },
+          },
+        }),
+        prisma.cart.upsert({
+          where: { userId },
+          create: { userId },
+          update: {},
+        }),
+      ]);
 
       if (!variant) {
         return response.error(res, 404, "ไม่พบสินค้า");
@@ -92,31 +102,24 @@ module.exports = {
         return response.error(res, 400, "สินค้าไม่เพียงพอ");
       }
 
-      // หาหรือสร้าง cart
-      let cart = await prisma.cart.findUnique({ where: { userId } });
-      if (!cart) {
-        cart = await prisma.cart.create({ data: { userId } });
-      }
-
-      // ถ้า item นั้นมีอยู่แล้ว → เพิ่มจำนวน
       const existing = await prisma.cartItem.findFirst({
-        where: { cartId: cart.id, productVariantId: Number(productVariantId) },
+        where: {
+          cartId: cart.id,
+          productVariantId: Number(productVariantId),
+        },
       });
 
-      let item;
       if (existing) {
-        const newQty = existing.quantity + Number(quantity);
-
-        if (variant.stock < newQty) {
+        const newQuantity = existing.quantity + Number(quantity);
+        if (variant.stock < newQuantity) {
           return response.error(res, 400, "สินค้าไม่เพียงพอ");
         }
-
-        item = await prisma.cartItem.update({
+        await prisma.cartItem.update({
           where: { id: existing.id },
-          data: { quantity: newQty },
+          data: { quantity: newQuantity },
         });
       } else {
-        item = await prisma.cartItem.create({
+        await prisma.cartItem.create({
           data: {
             cartId: cart.id,
             productVariantId: Number(productVariantId),
@@ -125,8 +128,41 @@ module.exports = {
         });
       }
 
-      return response.success(res, 201, "เพิ่มสินค้าในตะกร้าสำเร็จ", item);
-    } catch (e) {
+      const updatedCart = await prisma.cart.findUnique({
+        where: { id: cart.id },
+        include: {
+          items: {
+            include: {
+              variant: {
+                include: {
+                  product: {
+                    select: {
+                      id: true,
+                      name: true,
+                      brand: true,
+                      images: {
+                        where: { isMain: true },
+                        select: { imageUrl: true },
+                        take: 1,
+                      },
+                    },
+                  },
+                  size: { select: { id: true, name: true } },
+                  color: { select: { id: true, name: true, hex: true } },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      return response.success(
+        res,
+        200,
+        "เพิ่มสินค้าในตะกร้าสำเร็จ",
+        updatedCart,
+      );
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -165,7 +201,7 @@ module.exports = {
       });
 
       return response.success(res, 200, "อัปเดตจำนวนสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -190,7 +226,7 @@ module.exports = {
       await prisma.cartItem.delete({ where: { id: itemId } });
 
       return response.success(res, 200, "ลบรายการสำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -209,7 +245,7 @@ module.exports = {
       await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
       return response.success(res, 200, "ล้างตะกร้าสำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

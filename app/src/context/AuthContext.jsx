@@ -14,6 +14,21 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
         return;
       }
+      // Check JWT expiry before making API call
+      try {
+        const decoded = JSON.parse(atob(token.split(".")[1]));
+        const now = Date.now() / 1000;
+        if (decoded.exp < now) {
+          localStorage.removeItem("token");
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // If token is invalid, remove it
+        localStorage.removeItem("token");
+        setLoading(false);
+        return;
+      }
       try {
         const res = await api.get("/api/auth/me");
         setUser(res.data.result);

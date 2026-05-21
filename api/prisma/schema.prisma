@@ -199,6 +199,10 @@ model Rental {
   stockReservations StockReservation[]
 
   @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([endDate])
+  @@index([returnDate])
 }
 
 enum RentalStatus {
@@ -225,6 +229,7 @@ model RentalItem {
   variant ProductVariant @relation(fields: [productVariantId], references: [id])
 
   @@index([rentalId])
+  @@index([productVariantId])
 }
 
 //////////////////////
@@ -243,6 +248,10 @@ model Payment {
   createdAt DateTime      @default(now())
 
   rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@index([rentalId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 enum PaymentStatus {
@@ -310,6 +319,8 @@ model Penalty {
   createdAt DateTime @default(now())
 
   rental Rental @relation(fields: [rentalId], references: [id])
+
+  @@index([rentalId])
 }
 
 enum PenaltyType {
@@ -381,6 +392,7 @@ model CartItem {
   variant ProductVariant @relation(fields: [productVariantId], references: [id])
 
   @@index([cartId])
+  @@index([productVariantId])
 }
 
 model Wishlist {
@@ -406,6 +418,9 @@ model Promotion {
   endDate   DateTime
 
   rentals Rental[]
+
+  @@index([startDate])
+  @@index([endDate])
 }
 
 //////////////////////

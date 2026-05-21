@@ -35,7 +35,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -61,7 +61,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูลโปรโมชัน", promotion);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -106,7 +106,7 @@ module.exports = {
       });
 
       return response.success(res, 201, "เพิ่มโปรโมชันสำเร็จ", promotion);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

@@ -20,8 +20,9 @@ module.exports = {
       const category = await prisma.category.create({ data: { name } });
       return response.success(res, 201, "เพิ่มหมวดหมู่สำเร็จ", category);
     } catch (e) {
-      if (e.code === "P2002") return response.error(res, 400, "ชื่อหมวดหมู่ซ้ำ");
-      return response.error(res, 500, e.message);
+      if (e.code === "P2002")
+        return response.error(res, 400, "ชื่อหมวดหมู่ซ้ำ");
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -55,8 +56,8 @@ module.exports = {
         page: Number(page),
         limit: Number(limit),
       });
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -69,15 +70,18 @@ module.exports = {
       const category = await prisma.category.findUnique({
         where: { id },
         include: {
-          types: true,
-          products: { where: { isDeleted: false } },
+          types: { select: { id: true, name: true } },
+          products: {
+            where: { isDeleted: false },
+            select: { id: true, name: true, brand: true, status: true },
+          },
         },
       });
 
       if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
       return response.success(res, 200, "ข้อมูลหมวดหมู่", category);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -96,12 +100,16 @@ module.exports = {
       const duplicate = await prisma.category.findFirst({
         where: { name: { equals: name, mode: "insensitive" }, NOT: { id } },
       });
-      if (duplicate) return response.error(res, 400, "ชื่อหมวดหมู่นี้ถูกใช้แล้ว");
+      if (duplicate)
+        return response.error(res, 400, "ชื่อหมวดหมู่นี้ถูกใช้แล้ว");
 
-      const category = await prisma.category.update({ where: { id }, data: { name } });
+      const category = await prisma.category.update({
+        where: { id },
+        data: { name },
+      });
       return response.success(res, 200, "แก้ไขข้อมูลหมวดหมู่สำเร็จ", category);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -121,16 +129,24 @@ module.exports = {
 
       if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
       if (category.types.length > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีประเภทสินค้าอยู่ในหมวดหมู่นี้");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจากมีประเภทสินค้าอยู่ในหมวดหมู่นี้",
+        );
       }
       if (category.products.length > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้ (รวมสินค้าที่ถูกลบแล้ว)");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในหมวดหมู่นี้ (รวมสินค้าที่ถูกลบแล้ว)",
+        );
       }
 
       await prisma.category.delete({ where: { id } });
       return response.success(res, 200, "ลบหมวดหมู่สำเร็จ");
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -149,13 +165,16 @@ module.exports = {
         return response.error(res, 400, "กรุณากรอกข้อมูลให้ครบถ้วน");
       }
 
-      const category = await prisma.category.findUnique({ where: { id: categoryId } });
+      const category = await prisma.category.findUnique({
+        where: { id: categoryId },
+      });
       if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
 
       const exist = await prisma.type.findFirst({
         where: { name: { equals: name, mode: "insensitive" }, categoryId },
       });
-      if (exist) return response.error(res, 400, "ประเภทนี้มีอยู่แล้วในหมวดหมู่นี้");
+      if (exist)
+        return response.error(res, 400, "ประเภทนี้มีอยู่แล้วในหมวดหมู่นี้");
 
       const type = await prisma.type.create({
         data: { name, categoryId },
@@ -163,8 +182,9 @@ module.exports = {
       });
       return response.success(res, 201, "สร้างประเภทสำเร็จ", type);
     } catch (e) {
-      if (e.code === "P2002") return response.error(res, 400, "ชื่อประเภทซ้ำในหมวดหมู่นี้");
-      return response.error(res, 500, e.message);
+      if (e.code === "P2002")
+        return response.error(res, 400, "ชื่อประเภทซ้ำในหมวดหมู่นี้");
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -200,8 +220,8 @@ module.exports = {
         page: Number(page),
         limit: Number(limit),
       });
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -221,8 +241,8 @@ module.exports = {
 
       if (!type) return response.error(res, 404, "ไม่พบข้อมูลประเภท");
       return response.success(res, 200, "ข้อมูลประเภท", type);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -238,11 +258,16 @@ module.exports = {
       if (!existing) return response.error(res, 404, "ไม่พบประเภท");
 
       name = name?.trim();
-      const newCategoryId = categoryId ? Number(categoryId) : existing.categoryId;
+      const newCategoryId = categoryId
+        ? Number(categoryId)
+        : existing.categoryId;
 
       if (categoryId) {
-        if (isNaN(newCategoryId)) return response.error(res, 400, "หมวดหมู่ไม่ถูกต้อง");
-        const category = await prisma.category.findUnique({ where: { id: newCategoryId } });
+        if (isNaN(newCategoryId))
+          return response.error(res, 400, "หมวดหมู่ไม่ถูกต้อง");
+        const category = await prisma.category.findUnique({
+          where: { id: newCategoryId },
+        });
         if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
       }
 
@@ -254,7 +279,8 @@ module.exports = {
             NOT: { id },
           },
         });
-        if (duplicate) return response.error(res, 400, "ชื่อประเภทนี้ถูกใช้แล้ว");
+        if (duplicate)
+          return response.error(res, 400, "ชื่อประเภทนี้ถูกใช้แล้ว");
       }
 
       const updated = await prisma.type.update({
@@ -269,7 +295,7 @@ module.exports = {
       return response.success(res, 200, "แก้ไขข้อมูลประเภทสำเร็จ", updated);
     } catch (e) {
       if (e.code === "P2002") return response.error(res, 400, "ชื่อประเภทซ้ำ");
-      return response.error(res, 500, e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -286,13 +312,17 @@ module.exports = {
 
       if (!type) return response.error(res, 404, "ไม่พบประเภท");
       if (type.products.length > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในประเภทนี้ (รวมสินค้าที่ถูกลบแล้ว)");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจากมีสินค้าอยู่ในประเภทนี้ (รวมสินค้าที่ถูกลบแล้ว)",
+        );
       }
 
       await prisma.type.delete({ where: { id } });
       return response.success(res, 200, "ลบข้อมูลประเภทสำเร็จ");
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -313,7 +343,7 @@ module.exports = {
       return response.success(res, 201, "เพิ่ม size สำเร็จ", size);
     } catch (e) {
       if (e.code === "P2002") return response.error(res, 400, "ชื่อ size ซ้ำ");
-      return response.error(res, 500, e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -338,7 +368,7 @@ module.exports = {
       return response.success(res, 200, "แก้ไข size สำเร็จ", size);
     } catch (e) {
       if (e.code === "P2002") return response.error(res, 400, "ชื่อ size ซ้ำ");
-      return response.error(res, 500, e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -348,14 +378,16 @@ module.exports = {
       const { search } = req.query;
 
       const sizes = await prisma.size.findMany({
-        where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
+        where: search
+          ? { name: { contains: search, mode: "insensitive" } }
+          : undefined,
         include: { _count: { select: { variants: true } } },
         orderBy: { name: "asc" },
       });
 
       return response.success(res, 200, "ข้อมูล Size", sizes);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -372,8 +404,8 @@ module.exports = {
 
       if (!size) return response.error(res, 404, "ไม่พบ size");
       return response.success(res, 200, "ข้อมูล Size", size);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -391,13 +423,17 @@ module.exports = {
       if (!size) return response.error(res, 404, "ไม่พบ size");
 
       if (size._count.variants > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจาก size นี้มี variant ใช้งานอยู่");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจาก size นี้มี variant ใช้งานอยู่",
+        );
       }
 
       await prisma.size.delete({ where: { id } });
       return response.success(res, 200, "ลบ size สำเร็จ");
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -414,7 +450,11 @@ module.exports = {
       if (!name) return response.error(res, 400, "กรุณากรอกชื่อ color");
 
       if (hex && !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex)) {
-        return response.error(res, 400, "รูปแบบ hex color ไม่ถูกต้อง เช่น #FFFFFF");
+        return response.error(
+          res,
+          400,
+          "รูปแบบ hex color ไม่ถูกต้อง เช่น #FFFFFF",
+        );
       }
 
       const exist = await prisma.color.findUnique({ where: { name } });
@@ -424,7 +464,7 @@ module.exports = {
       return response.success(res, 201, "เพิ่ม color สำเร็จ", color);
     } catch (e) {
       if (e.code === "P2002") return response.error(res, 400, "ชื่อ color ซ้ำ");
-      return response.error(res, 500, e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -440,7 +480,11 @@ module.exports = {
       if (!name) return response.error(res, 400, "กรุณากรอกชื่อ color");
 
       if (hex && !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex)) {
-        return response.error(res, 400, "รูปแบบ hex color ไม่ถูกต้อง เช่น #FFFFFF");
+        return response.error(
+          res,
+          400,
+          "รูปแบบ hex color ไม่ถูกต้อง เช่น #FFFFFF",
+        );
       }
 
       const existing = await prisma.color.findUnique({ where: { id } });
@@ -449,13 +493,17 @@ module.exports = {
       const duplicate = await prisma.color.findFirst({
         where: { name, NOT: { id } },
       });
-      if (duplicate) return response.error(res, 400, "ชื่อ color นี้ถูกใช้แล้ว");
+      if (duplicate)
+        return response.error(res, 400, "ชื่อ color นี้ถูกใช้แล้ว");
 
-      const color = await prisma.color.update({ where: { id }, data: { name, hex } });
+      const color = await prisma.color.update({
+        where: { id },
+        data: { name, hex },
+      });
       return response.success(res, 200, "แก้ไข color สำเร็จ", color);
     } catch (e) {
       if (e.code === "P2002") return response.error(res, 400, "ชื่อ color ซ้ำ");
-      return response.error(res, 500, e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -465,14 +513,16 @@ module.exports = {
       const { search } = req.query;
 
       const colors = await prisma.color.findMany({
-        where: search ? { name: { contains: search, mode: "insensitive" } } : undefined,
+        where: search
+          ? { name: { contains: search, mode: "insensitive" } }
+          : undefined,
         include: { _count: { select: { variants: true } } },
         orderBy: { name: "asc" },
       });
 
       return response.success(res, 200, "ข้อมูล Color", colors);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -489,8 +539,8 @@ module.exports = {
 
       if (!color) return response.error(res, 404, "ไม่พบ color");
       return response.success(res, 200, "ข้อมูล Color", color);
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -508,13 +558,17 @@ module.exports = {
       if (!color) return response.error(res, 404, "ไม่พบ color");
 
       if (color._count.variants > 0) {
-        return response.error(res, 400, "ไม่สามารถลบได้ เนื่องจาก color นี้มี variant ใช้งานอยู่");
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลบได้ เนื่องจาก color นี้มี variant ใช้งานอยู่",
+        );
       }
 
       await prisma.color.delete({ where: { id } });
       return response.success(res, 200, "ลบ color สำเร็จ");
-    } catch (e) {
-      return response.error(res, 500, e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 };

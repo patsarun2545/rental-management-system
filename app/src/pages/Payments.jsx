@@ -302,6 +302,7 @@ export default function Payments() {
           <img
             src={getImageUrl(slipUrl)}
             alt="slip"
+            loading="lazy"
             className="img-fluid rounded"
           />
         )}

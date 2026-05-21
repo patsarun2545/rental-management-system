@@ -1,8 +1,127 @@
 import MyModal from "../components/MyModal";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { showSuccess, showError, showConfirm } from "../utils/alert.utils";
 import { getImageUrl } from "../utils/image.utils";
 import api from "../services/axios";
+
+// Memoized table row component to prevent unnecessary re-renders
+const ProductTableRow = memo(
+  ({
+    item,
+    removing,
+    restoring,
+    showDeleted,
+    handleEdit,
+    handleToggleStatus,
+    openVariants,
+    handleRemove,
+    handleRestore,
+  }) => {
+    return (
+      <tr key={item.id} className={showDeleted ? "table-secondary" : ""}>
+        <td className="text-center p-1">
+          {item.images?.find((img) => img.isMain)?.imageUrl ? (
+            <img
+              src={getImageUrl(item.images.find((img) => img.isMain).imageUrl)}
+              alt=""
+              loading="lazy"
+              style={{
+                width: 50,
+                height: 50,
+                objectFit: "contain",
+                borderRadius: 4,
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: 50,
+                height: 50,
+                backgroundColor: "#f0f0f0",
+                borderRadius: 4,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 10,
+                color: "#999",
+              }}
+            >
+              No img
+            </div>
+          )}
+        </td>
+        <td>{item.name}</td>
+        <td>{item.brand || "-"}</td>
+        <td>฿{item.price?.toLocaleString() || "-"}</td>
+        <td>{item.category?.name || "-"}</td>
+        <td>{item.type?.name || "-"}</td>
+        <td>
+          <span
+            className={`badge bg-${item.status === "ACTIVE" ? "success" : "secondary"}`}
+          >
+            {item.status === "ACTIVE" ? "ใช้งาน" : "ปิด"}
+          </span>
+        </td>
+        <td className="text-center">
+          {showDeleted ? (
+            <button
+              className="btn btn-outline-success btn-sm"
+              disabled={restoring === item.id}
+              onClick={() => handleRestore(item)}
+            >
+              {restoring === item.id ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-1" />
+                  กู้คืน...
+                </>
+              ) : (
+                "กู้คืน"
+              )}
+            </button>
+          ) : (
+            <>
+              <button
+                className="btn btn-outline-primary btn-sm me-1"
+                disabled={!!removing}
+                onClick={() => handleEdit(item)}
+              >
+                แก้ไข
+              </button>
+              <button
+                className="btn btn-outline-warning btn-sm me-1"
+                onClick={() => handleToggleStatus(item)}
+              >
+                {item.status === "ACTIVE" ? "ปิด" : "เปิด"}
+              </button>
+              <button
+                className="btn btn-outline-info btn-sm me-1"
+                onClick={() => openVariants(item)}
+              >
+                Variant
+              </button>
+              <button
+                className="btn btn-outline-danger btn-sm"
+                disabled={!!removing}
+                onClick={() => handleRemove(item)}
+              >
+                {removing === item.id ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-1" />
+                    ลบ...
+                  </>
+                ) : (
+                  "ลบ"
+                )}
+              </button>
+            </>
+          )}
+        </td>
+      </tr>
+    );
+  },
+);
+
+ProductTableRow.displayName = "ProductTableRow";
 
 export default function Products() {
   // LIST STATE
@@ -62,10 +181,21 @@ export default function Products() {
   const [colors, setColors] = useState([]);
 
   useEffect(() => {
-    api
-      .get("/api/catalog/categories", { params: { limit: 100 } })
-      .then((r) => setCategories(r.data.result.data))
-      .catch(() => {});
+    const fetchCatalogData = async () => {
+      try {
+        const [catsRes, sizesRes, colorsRes] = await Promise.all([
+          api.get("/api/catalog/categories", { params: { limit: 100 } }),
+          api.get("/api/catalog/sizes"),
+          api.get("/api/catalog/colors"),
+        ]);
+        setCategories(catsRes.data.result.data);
+        setSizes(sizesRes.data.result);
+        setColors(colorsRes.data.result);
+      } catch {
+        // Silently fail for catalog data
+      }
+    };
+    fetchCatalogData();
   }, []);
 
   useEffect(() => {
@@ -80,17 +210,6 @@ export default function Products() {
       .then((r) => setTypes(r.data.result.data))
       .catch(() => {});
   }, [form.categoryId]);
-
-  useEffect(() => {
-    api
-      .get("/api/catalog/sizes")
-      .then((r) => setSizes(r.data.result))
-      .catch(() => {});
-    api
-      .get("/api/catalog/colors")
-      .then((r) => setColors(r.data.result))
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -515,120 +634,18 @@ export default function Products() {
                   </tr>
                 ) : (
                   data.map((item) => (
-                    <tr
+                    <ProductTableRow
                       key={item.id}
-                      className={showDeleted ? "table-secondary" : ""}
-                    >
-                      <td className="text-center p-1">
-                        {item.images?.find((img) => img.isMain)?.imageUrl ? (
-                          <img
-                            src={getImageUrl(
-                              item.images.find((img) => img.isMain).imageUrl,
-                            )}
-                            alt=""
-                            style={{
-                              width: 50,
-                              height: 50,
-                              objectFit: "contain",
-                              borderRadius: 4,
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 50,
-                              height: 50,
-                              background: "#f0f0f0",
-                              borderRadius: 4,
-                              display: "inline-flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <span style={{ fontSize: 18, color: "#bbb" }}>
-                              📷
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td>{item.name}</td>
-                      <td>{item.brand || "-"}</td>
-                      <td>{item.category?.name}</td>
-                      <td>{item.type?.name}</td>
-                      <td>{item.price}</td>
-                      {!showDeleted && (
-                        <td>
-                          <span
-                            className={`badge bg-${item.status === "ACTIVE" ? "success" : "secondary"}`}
-                          >
-                            {item.status}
-                          </span>
-                        </td>
-                      )}
-                      {showDeleted && (
-                        <td className="text-muted small">
-                          {item.deletedAt
-                            ? new Date(item.deletedAt).toLocaleDateString(
-                                "th-TH",
-                              )
-                            : "-"}
-                        </td>
-                      )}
-                      <td className="text-center">
-                        {showDeleted ? (
-                          <button
-                            className="btn btn-outline-success btn-sm"
-                            disabled={restoring === item.id}
-                            onClick={() => handleRestore(item)}
-                          >
-                            {restoring === item.id ? (
-                              <>
-                                <span className="spinner-border spinner-border-sm me-1" />
-                                กู้คืน...
-                              </>
-                            ) : (
-                              "กู้คืน"
-                            )}
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              className="btn btn-outline-primary btn-sm me-1"
-                              disabled={!!removing}
-                              onClick={() => handleEdit(item)}
-                            >
-                              แก้ไข
-                            </button>
-                            <button
-                              className="btn btn-outline-warning btn-sm me-1"
-                              onClick={() => handleToggleStatus(item)}
-                            >
-                              {item.status === "ACTIVE" ? "ปิด" : "เปิด"}
-                            </button>
-                            <button
-                              className="btn btn-outline-info btn-sm me-1"
-                              onClick={() => openVariants(item)}
-                            >
-                              Variant
-                            </button>
-                            <button
-                              className="btn btn-outline-danger btn-sm"
-                              disabled={!!removing}
-                              onClick={() => handleRemove(item)}
-                            >
-                              {removing === item.id ? (
-                                <>
-                                  <span className="spinner-border spinner-border-sm me-1" />
-                                  ลบ...
-                                </>
-                              ) : (
-                                "ลบ"
-                              )}
-                            </button>
-                          </>
-                        )}
-                      </td>
-                    </tr>
+                      item={item}
+                      removing={removing}
+                      restoring={restoring}
+                      showDeleted={showDeleted}
+                      handleEdit={handleEdit}
+                      handleToggleStatus={handleToggleStatus}
+                      openVariants={openVariants}
+                      handleRemove={handleRemove}
+                      handleRestore={handleRestore}
+                    />
                   ))
                 )}
               </tbody>
@@ -745,6 +762,7 @@ export default function Products() {
                   <img
                     src={getImageUrl(img.imageUrl)}
                     alt=""
+                    loading="lazy"
                     className="img-fluid rounded mb-1"
                     style={{ height: 100, width: "100%", objectFit: "contain" }}
                   />

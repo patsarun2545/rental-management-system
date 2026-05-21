@@ -46,7 +46,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -76,7 +76,7 @@ module.exports = {
       if (!user) return response.error(res, 404, "ไม่พบผู้ใช้");
 
       return response.success(res, 200, "ข้อมูลผู้ใช้", user);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -151,7 +151,7 @@ module.exports = {
       });
 
       return response.success(res, 200, "เปลี่ยนรหัสผ่านสำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -167,28 +167,44 @@ module.exports = {
         return response.error(res, 400, "Role ไม่ถูกต้อง");
       }
 
-      // กัน admin ลด role ตัวเองหรือลด admin คนสุดท้าย
-      const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-      if (!target) return response.error(res, 404, "ไม่พบผู้ใช้");
+      const user = await prisma.$transaction(async (tx) => {
+        // Lock the user row and admin count check
+        const target = await tx.$queryRaw`
+          SELECT id, role FROM "User" WHERE id = ${id} FOR UPDATE
+        `;
+        if (!target.length) throw new Error("NOT_FOUND");
 
-      if (target.role === "ADMIN" && role !== "ADMIN") {
-        if (req.user.id === id) {
-          return response.error(res, 400, "ไม่สามารถลด role ตัวเองได้");
+        if (target[0].role === "ADMIN" && role !== "ADMIN") {
+          if (req.user.id === id) {
+            throw new Error("CANNOT_DEMOTE_SELF");
+          }
+          const adminCount = await tx.user.count({
+            where: { role: "ADMIN" },
+          });
+          if (adminCount <= 1) {
+            throw new Error("LAST_ADMIN");
+          }
         }
-        const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
-        if (adminCount <= 1) {
-          return response.error(res, 400, "ไม่สามารถลด role ได้ เนื่องจากเป็น Admin คนสุดท้ายในระบบ");
-        }
-      }
 
-      const user = await prisma.user.update({
-        where: { id },
-        data: { role },
-        select: { id: true, email: true, name: true, role: true },
+        return await tx.user.update({
+          where: { id },
+          data: { role },
+          select: { id: true, email: true, name: true, role: true },
+        });
       });
 
       return response.success(res, 200, "อัปเดต role สำเร็จ", user);
     } catch (e) {
+      if (e.message === "NOT_FOUND")
+        return response.error(res, 404, "ไม่พบผู้ใช้");
+      if (e.message === "CANNOT_DEMOTE_SELF")
+        return response.error(res, 400, "ไม่สามารถลด role ตัวเองได้");
+      if (e.message === "LAST_ADMIN")
+        return response.error(
+          res,
+          400,
+          "ไม่สามารถลด role ได้ เนื่องจากเป็น Admin คนสุดท้ายในระบบ",
+        );
       if (e.code === "P2025") return response.error(res, 404, "ไม่พบผู้ใช้");
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
@@ -199,41 +215,59 @@ module.exports = {
     try {
       const id = Number(req.params.id);
 
-      const user = await prisma.user.findUnique({ where: { id } });
-      if (!user) return response.error(res, 404, "ไม่พบผู้ใช้");
+      await prisma.$transaction(async (tx) => {
+        const user = await tx.$queryRaw`
+          SELECT id, role FROM "User" WHERE id = ${id} FOR UPDATE
+        `;
+        if (!user.length) throw new Error("NOT_FOUND");
 
-      // กัน admin ลบ account ตัวเองหรือลบ admin คนสุดท้าย
-      if (req.user.id === id) {
-        return response.error(res, 400, "ไม่สามารถลบ account ตัวเองได้");
-      }
-      const targetUser = await prisma.user.findUnique({ where: { id }, select: { role: true } });
-      if (targetUser?.role === "ADMIN") {
-        const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
-        if (adminCount <= 1) {
-          return response.error(res, 400, "ไม่สามารถลบ Admin คนสุดท้ายในระบบได้");
+        if (req.user.id === id) {
+          throw new Error("CANNOT_DELETE_SELF");
         }
-      }
 
-      // ป้องกัน FK error: ตรวจ active rental ก่อนลบ
-      const activeRental = await prisma.rental.findFirst({
-        where: {
-          userId: id,
-          status: { in: ["PENDING", "CONFIRMED", "ACTIVE", "LATE"] },
-        },
-        select: { id: true, code: true, status: true },
+        if (user[0].role === "ADMIN") {
+          const adminCount = await tx.user.count({
+            where: { role: "ADMIN" },
+          });
+          if (adminCount <= 1) {
+            throw new Error("LAST_ADMIN");
+          }
+        }
+
+        // Check active rentals
+        const activeRental = await tx.rental.findFirst({
+          where: {
+            userId: id,
+            status: { in: ["PENDING", "CONFIRMED", "ACTIVE", "LATE"] },
+          },
+          select: { id: true, code: true, status: true },
+        });
+
+        if (activeRental) {
+          throw new Error(
+            `ACTIVE_RENTAL:${activeRental.code}-${activeRental.status}`,
+          );
+        }
+
+        await tx.user.delete({ where: { id } });
       });
 
-      if (activeRental) {
+      return response.success(res, 200, "ลบผู้ใช้สำเร็จ");
+    } catch (e) {
+      if (e.message === "NOT_FOUND")
+        return response.error(res, 404, "ไม่พบผู้ใช้");
+      if (e.message === "CANNOT_DELETE_SELF")
+        return response.error(res, 400, "ไม่สามารถลบ account ตัวเองได้");
+      if (e.message === "LAST_ADMIN")
+        return response.error(res, 400, "ไม่สามารถลบ Admin คนสุดท้ายในระบบได้");
+      if (e.message?.startsWith("ACTIVE_RENTAL:")) {
+        const [code, status] = e.message.split(":").slice(1);
         return response.error(
           res,
           400,
-          `ไม่สามารถลบผู้ใช้ได้ เนื่องจากมีรายการเช่าที่ยังดำเนินการอยู่ (${activeRental.code} - ${activeRental.status})`,
+          `ไม่สามารถลบผู้ใช้ได้ เนื่องจากมีรายการเช่าที่ยังดำเนินการอยู่ (${code} - ${status})`,
         );
       }
-
-      await prisma.user.delete({ where: { id } });
-      return response.success(res, 200, "ลบผู้ใช้สำเร็จ");
-    } catch (e) {
       if (e.code === "P2025") return response.error(res, 404, "ไม่พบผู้ใช้");
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
@@ -250,7 +284,15 @@ module.exports = {
       const { page = 1, limit = 20, status } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
 
-      const validStatuses = ["PENDING", "CONFIRMED", "ACTIVE", "RETURNED", "LATE", "CANCELLED", "COMPLETED"];
+      const validStatuses = [
+        "PENDING",
+        "CONFIRMED",
+        "ACTIVE",
+        "RETURNED",
+        "LATE",
+        "CANCELLED",
+        "COMPLETED",
+      ];
       const where = {
         userId,
         ...(status && validStatuses.includes(status) && { status }),
@@ -263,7 +305,7 @@ module.exports = {
           take: Number(limit),
           orderBy: { createdAt: "desc" },
           include: {
-            promotion: true,
+            promotion: { select: { id: true, name: true, discount: true } },
             items: {
               include: {
                 variant: {
@@ -273,7 +315,11 @@ module.exports = {
                         id: true,
                         name: true,
                         brand: true,
-                        images: { where: { isMain: true }, select: { imageUrl: true }, take: 1 },
+                        images: {
+                          where: { isMain: true },
+                          select: { imageUrl: true },
+                          take: 1,
+                        },
                       },
                     },
                     size: { select: { id: true, name: true } },
@@ -282,11 +328,49 @@ module.exports = {
                 },
               },
             },
-            payments: { orderBy: { createdAt: "desc" } },
-            deposit: true,
-            penalties: true,
-            returnLog: true,
-            invoice: true,
+            payments: {
+              select: {
+                id: true,
+                amount: true,
+                status: true,
+                type: true,
+                createdAt: true,
+              },
+              orderBy: { createdAt: "desc" },
+            },
+            deposit: {
+              select: {
+                id: true,
+                amount: true,
+                status: true,
+                refundedAmount: true,
+              },
+            },
+            penalties: {
+              select: {
+                id: true,
+                type: true,
+                amount: true,
+                note: true,
+                createdAt: true,
+              },
+            },
+            returnLog: {
+              select: {
+                id: true,
+                returnedAt: true,
+                condition: true,
+                note: true,
+              },
+            },
+            invoice: {
+              select: {
+                id: true,
+                invoiceNo: true,
+                total: true,
+                createdAt: true,
+              },
+            },
           },
         }),
         prisma.rental.count({ where }),
@@ -298,7 +382,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -313,7 +397,15 @@ module.exports = {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) return response.error(res, 404, "ไม่พบผู้ใช้");
 
-      const validStatuses = ["PENDING", "CONFIRMED", "ACTIVE", "RETURNED", "LATE", "CANCELLED", "COMPLETED"];
+      const validStatuses = [
+        "PENDING",
+        "CONFIRMED",
+        "ACTIVE",
+        "RETURNED",
+        "LATE",
+        "CANCELLED",
+        "COMPLETED",
+      ];
       const where = {
         userId,
         ...(status && validStatuses.includes(status) && { status }),
@@ -336,7 +428,11 @@ module.exports = {
                         id: true,
                         name: true,
                         brand: true,
-                        images: { where: { isMain: true }, select: { imageUrl: true }, take: 1 },
+                        images: {
+                          where: { isMain: true },
+                          select: { imageUrl: true },
+                          take: 1,
+                        },
                       },
                     },
                     size: { select: { id: true, name: true } },
@@ -362,7 +458,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -400,7 +496,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -414,7 +510,7 @@ module.exports = {
         orderBy: { id: "asc" },
       });
       return response.success(res, 200, "รายการที่อยู่", addresses);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -428,7 +524,7 @@ module.exports = {
         orderBy: { id: "asc" },
       });
       return response.success(res, 200, "รายการที่อยู่", addresses);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -446,7 +542,7 @@ module.exports = {
       });
 
       return response.success(res, 201, "เพิ่มที่อยู่สำเร็จ", newAddress);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -463,7 +559,7 @@ module.exports = {
         data: { userId, address },
       });
       return response.success(res, 201, "เพิ่มที่อยู่สำเร็จ", newAddress);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -489,7 +585,7 @@ module.exports = {
         data: { address },
       });
       return response.success(res, 200, "อัปเดตที่อยู่สำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -508,7 +604,7 @@ module.exports = {
 
       await prisma.address.delete({ where: { id } });
       return response.success(res, 200, "ลบที่อยู่สำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -531,7 +627,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูลที่อยู่", address);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -550,7 +646,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูลที่อยู่", address);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -575,7 +671,7 @@ module.exports = {
         data: { address },
       });
       return response.success(res, 200, "อัปเดตที่อยู่สำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -593,7 +689,7 @@ module.exports = {
 
       await prisma.address.delete({ where: { id } });
       return response.success(res, 200, "ลบที่อยู่สำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

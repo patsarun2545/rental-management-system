@@ -48,19 +48,23 @@ module.exports = {
       if (!Array.isArray(images))
         return response.error(res, 400, "images ต้องเป็น array");
 
-      const category = await prisma.category.findUnique({
-        where: { id: Number(categoryId) },
-      });
+      // Parallelize category and type lookups
+      const [category, type] = await Promise.all([
+        prisma.category.findUnique({
+          where: { id: Number(categoryId) },
+        }),
+        prisma.type.findUnique({
+          where: { id: Number(typeId) },
+        }),
+      ]);
       if (!category) return response.error(res, 404, "ไม่พบหมวดหมู่");
-
-      const type = await prisma.type.findUnique({
-        where: { id: Number(typeId) },
-      });
       if (!type || type.categoryId !== Number(categoryId)) {
         return response.error(res, 400, "type ไม่อยู่ในหมวดหมู่ที่เลือก");
       }
 
       const combinationSet = new Set();
+
+      // Validate basic data first
       for (const v of variants) {
         if (!v.sizeId || !v.colorId || !v.sku) {
           return response.error(res, 400, "ข้อมูล variant ไม่ครบ");
@@ -76,22 +80,33 @@ module.exports = {
         if (combinationSet.has(key))
           return response.error(res, 400, "มี size + color ซ้ำกันใน variants");
         combinationSet.add(key);
+      }
 
-        const size = await prisma.size.findUnique({
-          where: { id: Number(v.sizeId) },
-        });
+      // Batch fetch all sizes, colors, and SKUs to avoid N+1
+      const sizeIds = variants.map((v) => Number(v.sizeId));
+      const colorIds = variants.map((v) => Number(v.colorId));
+      const skus = variants.map((v) => v.sku);
+
+      const [sizes, colors, existingSkus] = await Promise.all([
+        prisma.size.findMany({ where: { id: { in: sizeIds } } }),
+        prisma.color.findMany({ where: { id: { in: colorIds } } }),
+        prisma.productVariant.findMany({ where: { sku: { in: skus } } }),
+      ]);
+
+      const sizeMap = new Map(sizes.map((s) => [s.id, s]));
+      const colorMap = new Map(colors.map((c) => [c.id, c]));
+      const skuSet = new Set(existingSkus.map((s) => s.sku));
+
+      // Validate using batch-fetched data
+      for (const v of variants) {
+        const size = sizeMap.get(Number(v.sizeId));
         if (!size) return response.error(res, 404, `ไม่พบ size id ${v.sizeId}`);
 
-        const color = await prisma.color.findUnique({
-          where: { id: Number(v.colorId) },
-        });
+        const color = colorMap.get(Number(v.colorId));
         if (!color)
           return response.error(res, 404, `ไม่พบ color id ${v.colorId}`);
 
-        const existSku = await prisma.productVariant.findUnique({
-          where: { sku: v.sku },
-        });
-        if (existSku)
+        if (skuSet.has(v.sku))
           return response.error(res, 400, `SKU ${v.sku} ถูกใช้แล้ว`);
       }
 
@@ -388,6 +403,58 @@ module.exports = {
   // VARIANT (sub-resource of Product)
   // ============================================================
 
+  // GET /products/variants — Get all variants with pagination and search
+  getAllVariants: async (req, res) => {
+    try {
+      const { page = 1, limit = 100, search = "" } = req.query;
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const where = {
+        ...(search && {
+          OR: [
+            { sku: { contains: search, mode: "insensitive" } },
+            { product: { name: { contains: search, mode: "insensitive" } } },
+          ],
+        }),
+      };
+
+      const [variants, total] = await Promise.all([
+        prisma.productVariant.findMany({
+          where,
+          include: {
+            product: {
+              select: {
+                id: true,
+                name: true,
+                brand: true,
+                images: {
+                  where: { isMain: true },
+                  select: { imageUrl: true },
+                  take: 1,
+                },
+              },
+            },
+            size: { select: { id: true, name: true } },
+            color: { select: { id: true, name: true, hex: true } },
+          },
+          orderBy: { id: "desc" },
+          skip,
+          take: Number(limit),
+        }),
+        prisma.productVariant.count({ where }),
+      ]);
+
+      return response.success(res, 200, "ข้อมูล variants", {
+        result: variants,
+        total,
+        page: Number(page),
+        limit: Number(limit),
+      });
+    } catch (e) {
+      return response.error(res, 500, e.message);
+    }
+  },
+
   // POST /products/:productId/variants
   createVariant: async (req, res) => {
     try {
@@ -669,7 +736,7 @@ module.exports = {
         where: { productId, isMain: true },
       });
 
-      const images = await prisma.productImage.createMany({
+      await prisma.productImage.createMany({
         data: req.files.map((f, i) => ({
           productId,
           imageUrl: `/uploads/${f.filename}`,

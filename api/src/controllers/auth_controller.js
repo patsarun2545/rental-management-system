@@ -126,7 +126,7 @@ module.exports = {
         role: user.role,
         token,
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -139,7 +139,7 @@ module.exports = {
         sameSite: "none",
       });
       return response.success(res, 200, "Logout สำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -154,7 +154,7 @@ module.exports = {
       if (!user) return response.error(res, 404, "ไม่มีข้อมูลผู้ใช้");
 
       return response.success(res, 200, "ข้อมูลผู้ใช้", user);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

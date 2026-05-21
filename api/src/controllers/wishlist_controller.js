@@ -43,7 +43,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -124,7 +124,7 @@ module.exports = {
       });
 
       return response.success(res, 200, "ลบออกจาก Wishlist สำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -144,7 +144,7 @@ module.exports = {
       return response.success(res, 200, "ตรวจสอบ Wishlist", {
         inWishlist: !!existing,
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

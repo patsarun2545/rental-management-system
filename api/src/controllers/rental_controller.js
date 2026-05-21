@@ -21,7 +21,15 @@ const generateUniqueCode = async (tx, maxRetries = 5) => {
 
 const rentalInclude = {
   user: { select: { id: true, name: true, email: true, phone: true } },
-  promotion: true,
+  promotion: {
+    select: {
+      id: true,
+      name: true,
+      discount: true,
+      startDate: true,
+      endDate: true,
+    },
+  },
   items: {
     include: {
       variant: {
@@ -44,11 +52,27 @@ const rentalInclude = {
       },
     },
   },
-  payments: true,
-  invoice: true,
-  deposit: true,
-  penalties: true,
-  returnLog: true,
+  payments: {
+    select: {
+      id: true,
+      amount: true,
+      status: true,
+      type: true,
+      createdAt: true,
+    },
+  },
+  invoice: {
+    select: { id: true, invoiceNo: true, total: true, createdAt: true },
+  },
+  deposit: {
+    select: { id: true, amount: true, status: true, refundedAmount: true },
+  },
+  penalties: {
+    select: { id: true, type: true, amount: true, note: true, createdAt: true },
+  },
+  returnLog: {
+    select: { id: true, returnedAt: true, condition: true, note: true },
+  },
 };
 
 // ============================================================
@@ -60,12 +84,17 @@ module.exports = {
   getAll: async (req, res) => {
     try {
       const isAdmin = req.user.role === "ADMIN";
-      const { page = 1, limit = 20, status, search = "" } = req.query;
+      const { page = 1, limit = 20, status, statuses, search = "" } = req.query;
       const skip = (Number(page) - 1) * Number(limit);
 
       const where = {
         ...(!isAdmin && { userId: req.user.id }),
         ...(status && { status }),
+        ...(statuses && {
+          status: {
+            in: Array.isArray(statuses) ? statuses : statuses.split(","),
+          },
+        }),
         ...(search && {
           OR: [
             { code: { contains: search, mode: "insensitive" } },
@@ -99,7 +128,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -119,7 +148,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูลการเช่า", rental);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -153,7 +182,6 @@ module.exports = {
       if (end <= start)
         return response.error(res, 400, "วันคืนต้องมากกว่าวันรับ");
 
-      let totalPrice = 0;
       const resolvedItems = [];
 
       // ตรวจ duplicate productVariantId ใน items
@@ -170,6 +198,7 @@ module.exports = {
         variantIdSet.add(vid);
       }
 
+      // Validate basic data first
       for (const item of items) {
         if (
           !Number.isInteger(Number(item.productVariantId)) ||
@@ -177,9 +206,25 @@ module.exports = {
         ) {
           return response.error(res, 400, "ข้อมูล items ไม่ถูกต้อง");
         }
-        const variant = await prisma.productVariant.findUnique({
-          where: { id: Number(item.productVariantId) },
-        });
+      }
+
+      // Batch fetch all variants to avoid N+1
+      const variantIds = items.map((i) => Number(i.productVariantId));
+      const [variants, promo] = await Promise.all([
+        prisma.productVariant.findMany({
+          where: { id: { in: variantIds } },
+        }),
+        promotionId
+          ? prisma.promotion.findUnique({
+              where: { id: Number(promotionId) },
+            })
+          : Promise.resolve(null),
+      ]);
+      const variantMap = new Map(variants.map((v) => [v.id, v]));
+
+      // Validate and calculate using batch-fetched data
+      for (const item of items) {
+        const variant = variantMap.get(Number(item.productVariantId));
         if (!variant) {
           return response.error(
             res,
@@ -195,23 +240,18 @@ module.exports = {
             `สินค้า variant id: ${item.productVariantId} ไม่เพียงพอ`,
           );
         }
-        totalPrice += variant.price * Number(item.quantity);
         resolvedItems.push({
           productVariantId: Number(item.productVariantId),
           quantity: Number(item.quantity),
         });
       }
 
-      if (promotionId) {
+      // Validate promotion (already fetched above)
+      if (promo) {
         const now = new Date();
-        const promo = await prisma.promotion.findUnique({
-          where: { id: Number(promotionId) },
-        });
-        if (!promo) return response.error(res, 404, "ไม่พบโปรโมชัน");
         if (now < promo.startDate || now > promo.endDate) {
           return response.error(res, 400, "โปรโมชันนี้หมดอายุแล้ว");
         }
-        totalPrice = totalPrice * (1 - promo.discount / 100);
       }
 
       const rental = await prisma.$transaction(async (tx) => {
@@ -223,12 +263,15 @@ module.exports = {
           FOR UPDATE
         `;
 
-        // ตรวจสอบ stock อีกครั้งภายใน lock
+        // ตรวจสอบ stock อีกครั้งภายใน lock - batch fetch เพื่อหลีกเลี่ยง N+1
+        const variantsInTx = await tx.productVariant.findMany({
+          where: { id: { in: variantIds } },
+        });
+        const variantMapInTx = new Map(variantsInTx.map((v) => [v.id, v]));
+
         let calcTotal = 0;
         for (const item of resolvedItems) {
-          const variant = await tx.productVariant.findUnique({
-            where: { id: item.productVariantId },
-          });
+          const variant = variantMapInTx.get(item.productVariantId);
           if (!variant || variant.stock < item.quantity) {
             throw new Error(
               `สินค้า variant id: ${item.productVariantId} ไม่เพียงพอ`,
@@ -337,12 +380,15 @@ module.exports = {
       ) {
         // ต้องคืน stock และลบ reservation ใน transaction เดียวกัน
         await prisma.$transaction(async (tx) => {
-          for (const item of existing.items) {
-            await tx.productVariant.update({
+          // Parallelize stock updates to avoid N+1
+          const stockUpdates = existing.items.map((item) =>
+            tx.productVariant.update({
               where: { id: item.productVariantId },
               data: { stock: { increment: item.quantity } },
-            });
-          }
+            }),
+          );
+          await Promise.all(stockUpdates);
+
           await tx.stockReservation.deleteMany({ where: { rentalId: id } });
           await tx.rental.update({
             where: { id },
@@ -416,12 +462,15 @@ module.exports = {
 
       if (stockReservedStatuses.includes(rental.status)) {
         await prisma.$transaction(async (tx) => {
-          for (const item of rental.items) {
-            await tx.productVariant.update({
+          // Parallelize stock updates to avoid N+1
+          const stockUpdates = rental.items.map((item) =>
+            tx.productVariant.update({
               where: { id: item.productVariantId },
               data: { stock: { increment: item.quantity } },
-            });
-          }
+            }),
+          );
+          await Promise.all(stockUpdates);
+
           await tx.stockReservation.deleteMany({ where: { rentalId: id } });
           updated = await tx.rental.update({
             where: { id },
@@ -443,7 +492,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ยกเลิกรายการเช่าสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -490,7 +539,7 @@ module.exports = {
       });
 
       return response.success(res, 200, "รายการสินค้าที่เช่า", items);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -537,7 +586,7 @@ module.exports = {
       if (!item) return response.error(res, 404, "ไม่พบรายการสินค้า");
 
       return response.success(res, 200, "ข้อมูลรายการสินค้าที่เช่า", item);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -716,7 +765,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "อัปเดตจำนวนสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -764,7 +813,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ลบสินค้าออกจากรายการเช่าสำเร็จ");
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -811,20 +860,24 @@ module.exports = {
           FOR UPDATE
         `;
 
-        for (const item of rental.items) {
-          await tx.productVariant.update({
+        // Parallelize stock updates and reservation creates to avoid N+1
+        const stockUpdates = rental.items.map((item) =>
+          tx.productVariant.update({
             where: { id: item.productVariantId },
             data: { stock: { decrement: item.quantity } },
-          });
-          await tx.stockReservation.create({
+          }),
+        );
+        const reservationCreates = rental.items.map((item) =>
+          tx.stockReservation.create({
             data: {
               productVariantId: item.productVariantId,
               rentalId,
               startDate: rental.startDate,
               endDate: rental.endDate,
             },
-          });
-        }
+          }),
+        );
+        await Promise.all([...stockUpdates, ...reservationCreates]);
         await tx.rental.update({
           where: { id: rentalId },
           data: { status: "CONFIRMED", handledBy: req.user.id },
@@ -849,7 +902,7 @@ module.exports = {
       );
 
       return response.success(res, 200, "ยืนยันและจอง stock สำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -884,8 +937,7 @@ module.exports = {
       );
 
       return response.success(res, 200, "เปิดใช้งานการเช่าสำเร็จ", updated);
-    } catch (e) {
-      console.error("activate error:", e);
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -927,7 +979,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -937,28 +989,28 @@ module.exports = {
     try {
       const adminId = Number(req.params.adminId);
 
-      const admin = await prisma.user.findUnique({
-        where: { id: adminId },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
-          createdAt: true,
-        },
-      });
+      const [admin, rentalStats] = await Promise.all([
+        prisma.user.findUnique({
+          where: { id: adminId },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            role: true,
+            createdAt: true,
+          },
+        }),
+        prisma.rental.groupBy({
+          by: ["status"],
+          where: { handledBy: adminId },
+          _count: { id: true },
+        }),
+      ]);
 
       if (!admin) return response.error(res, 404, "ไม่พบผู้ใช้");
       if (admin.role !== "ADMIN")
         return response.error(res, 400, "ผู้ใช้นี้ไม่ใช่ Admin");
-
-      // นับรายการเช่าที่ดูแลโดย admin คนนี้ แยกตามสถานะ
-      const rentalStats = await prisma.rental.groupBy({
-        by: ["status"],
-        where: { handledBy: adminId },
-        _count: { id: true },
-      });
 
       const statsMap = Object.fromEntries(
         rentalStats.map((r) => [r.status, r._count.id]),
@@ -969,7 +1021,7 @@ module.exports = {
         rentalStats: statsMap,
         totalHandled: rentalStats.reduce((sum, r) => sum + r._count.id, 0),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1029,7 +1081,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1074,7 +1126,7 @@ module.exports = {
       );
 
       return response.success(res, 200, "อัปเดต pickupDate สำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1131,7 +1183,7 @@ module.exports = {
       );
 
       return response.success(res, 200, "ปิดรายการเช่าสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1158,7 +1210,7 @@ module.exports = {
       if (!reservation) return response.error(res, 404, "ไม่พบข้อมูลการจอง");
 
       return response.success(res, 200, "ข้อมูลการจอง stock", reservation);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1198,7 +1250,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1233,7 +1285,7 @@ module.exports = {
         "รายการจอง stock ของการเช่า",
         reservations,
       );
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1295,7 +1347,7 @@ module.exports = {
         200,
         "ลบ reservation สำเร็จ และคืน stock แล้ว",
       );
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -1359,7 +1411,7 @@ module.exports = {
         requestedQuantity: Number(quantity),
         isAvailable: availableStock >= Number(quantity),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

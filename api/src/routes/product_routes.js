@@ -9,16 +9,28 @@ const upload = require("../middlewares/upload.middleware");
 // ============================================================
 // VARIANT — static prefix ต้องมาก่อน /:id ทั้งหมด
 // ============================================================
+router.get("/variants", productController.getAllVariants);
 router.get("/variants/:id", productController.getVariantById);
 router.put("/variants/:id", auth, isAdmin, productController.updateVariant);
 router.delete("/variants/:id", auth, isAdmin, productController.deleteVariant);
-router.patch("/variants/:id/stock", auth, isAdmin, productController.updateStock);
+router.patch(
+  "/variants/:id/stock",
+  auth,
+  isAdmin,
+  productController.updateStock,
+);
 
 // ============================================================
 // IMAGES — static prefix ต้องมาก่อน /:id ทั้งหมด
 // ============================================================
 router.patch("/images/:id/main", auth, isAdmin, productController.setMainImage);
-router.put("/images/:id", auth, isAdmin, upload.single("image"), productController.updateImage);
+router.put(
+  "/images/:id",
+  auth,
+  isAdmin,
+  upload.single("image"),
+  productController.updateImage,
+);
 router.delete("/images/:id", auth, isAdmin, productController.deleteImage);
 
 // ============================================================
@@ -36,9 +48,20 @@ router.patch("/:id/restore", auth, isAdmin, productController.restoreProduct);
 // ============================================================
 // VARIANT & IMAGE nested under /:productId — มาหลัง /:id ได้ เพราะ path ยาวกว่า
 // ============================================================
-router.post("/:productId/variants", auth, isAdmin, productController.createVariant);
+router.post(
+  "/:productId/variants",
+  auth,
+  isAdmin,
+  productController.createVariant,
+);
 router.get("/:productId/variants", productController.getVariantsByProduct);
-router.post("/:productId/images", auth, isAdmin, upload.array("images", 10), productController.addImage);
+router.post(
+  "/:productId/images",
+  auth,
+  isAdmin,
+  upload.array("images", 10),
+  productController.addImage,
+);
 router.get("/:productId/images", productController.getImagesByProduct);
 
 module.exports = router;

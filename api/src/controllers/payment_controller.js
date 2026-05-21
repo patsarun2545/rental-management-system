@@ -61,7 +61,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -93,7 +93,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูลการชำระเงิน", payment);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -117,7 +117,7 @@ module.exports = {
       });
 
       return response.success(res, 200, "ประวัติการชำระเงิน", payments);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -189,7 +189,7 @@ module.exports = {
         "บันทึกการชำระเงินสำเร็จ รอการตรวจสอบ",
         payment,
       );
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -258,8 +258,7 @@ module.exports = {
             },
           });
           const totalPaid =
-            prevApproved.reduce((sum, p) => sum + p.amount, 0) +
-            payment.amount;
+            prevApproved.reduce((sum, p) => sum + p.amount, 0) + payment.amount;
           if (totalPaid >= rental.totalPrice) {
             await tx.rental.update({
               where: { id: rental.id },
@@ -342,7 +341,7 @@ module.exports = {
         req.user.id,
       );
       return response.success(res, 200, "ปฏิเสธการชำระเงินสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -399,7 +398,7 @@ module.exports = {
           grandTotal: total,
         },
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -421,7 +420,7 @@ module.exports = {
       if (!invoice) return response.error(res, 404, "ยังไม่มี Invoice");
 
       return response.success(res, 200, "ข้อมูล Invoice", invoice);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -460,7 +459,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -492,7 +491,7 @@ module.exports = {
       }
 
       return response.success(res, 200, "ข้อมูล Invoice", invoice);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

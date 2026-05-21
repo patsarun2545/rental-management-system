@@ -93,12 +93,14 @@ module.exports = {
           });
         }
 
-        for (const item of rental.items) {
-          await tx.productVariant.update({
+        // Parallelize stock updates to avoid N+1
+        const stockUpdates = rental.items.map((item) =>
+          tx.productVariant.update({
             where: { id: item.productVariantId },
             data: { stock: { increment: item.quantity } },
-          });
-        }
+          }),
+        );
+        await Promise.all(stockUpdates);
 
         await tx.stockReservation.deleteMany({ where: { rentalId } });
 
@@ -126,7 +128,7 @@ module.exports = {
         daysLate,
         latePenaltyAmount,
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -167,7 +169,7 @@ module.exports = {
       });
 
       return response.success(res, 201, "เพิ่มค่าปรับสำเร็จ", penalty);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -192,7 +194,7 @@ module.exports = {
       const total = penalties.reduce((sum, p) => sum + p.amount, 0);
 
       return response.success(res, 200, "รายการค่าปรับ", { penalties, total });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -212,7 +214,11 @@ module.exports = {
       if (!penalty) return response.error(res, 404, "ไม่พบรายการค่าปรับ");
 
       if (type && !validTypes.includes(type)) {
-        return response.error(res, 400, "ประเภทค่าปรับไม่ถูกต้อง (LATE / DAMAGE / LOST)");
+        return response.error(
+          res,
+          400,
+          "ประเภทค่าปรับไม่ถูกต้อง (LATE / DAMAGE / LOST)",
+        );
       }
 
       if (amount !== undefined) {
@@ -226,13 +232,14 @@ module.exports = {
         data: {
           type: type || undefined,
           amount: amount !== undefined ? Number(amount) : undefined,
-          note: note !== undefined ? (note?.trim() || null) : undefined,
+          note: note !== undefined ? note?.trim() || null : undefined,
         },
       });
 
       return response.success(res, 200, "แก้ไขค่าปรับสำเร็จ", updated);
     } catch (e) {
-      if (e.code === "P2025") return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+      if (e.code === "P2025")
+        return response.error(res, 404, "ไม่พบรายการค่าปรับ");
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -252,7 +259,8 @@ module.exports = {
 
       return response.success(res, 200, "ลบค่าปรับสำเร็จ");
     } catch (e) {
-      if (e.code === "P2025") return response.error(res, 404, "ไม่พบรายการค่าปรับ");
+      if (e.code === "P2025")
+        return response.error(res, 404, "ไม่พบรายการค่าปรับ");
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -268,31 +276,38 @@ module.exports = {
       let { amount } = req.body;
       amount = Number(amount);
 
-      const rental = await prisma.rental.findUnique({
-        where: { id: rentalId },
-      });
-      if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
+      const deposit = await prisma.$transaction(async (tx) => {
+        const rental = await tx.rental.findUnique({
+          where: { id: rentalId },
+        });
+        if (!rental) throw new Error("RENTAL_NOT_FOUND");
 
-      const existing = await prisma.deposit.findUnique({ where: { rentalId } });
-      if (existing)
+        const existing = await tx.deposit.findUnique({ where: { rentalId } });
+        if (existing) throw new Error("DEPOSIT_EXISTS");
+
+        const dep = await tx.deposit.create({
+          data: { rentalId, amount },
+        });
+
+        await tx.rental.update({
+          where: { id: rentalId },
+          data: { depositAmount: amount },
+        });
+
+        return dep;
+      });
+
+      return response.success(res, 201, "Deposit created", deposit);
+    } catch (e) {
+      if (e.message === "RENTAL_NOT_FOUND")
+        return response.error(res, 404, "ไม่พบรายการเช่า");
+      if (e.message === "DEPOSIT_EXISTS")
         return response.error(
           res,
           400,
           "Deposit already exists for this rental",
         );
-
-      const deposit = await prisma.deposit.create({
-        data: { rentalId, amount },
-      });
-
-      await prisma.rental.update({
-        where: { id: rentalId },
-        data: { depositAmount: amount },
-      });
-
-      return response.success(res, 201, "Deposit created", deposit);
-    } catch (e) {
-      return response.error(res, 500, "Internal server error", e.message);
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -330,8 +345,8 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
-      return response.error(res, 500, "Internal server error", e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -340,7 +355,9 @@ module.exports = {
     try {
       const rentalId = Number(req.params.rentalId);
 
-      const rental = await prisma.rental.findUnique({ where: { id: rentalId } });
+      const rental = await prisma.rental.findUnique({
+        where: { id: rentalId },
+      });
       if (!rental) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       if (req.user.role !== "ADMIN" && rental.userId !== req.user.id) {
@@ -353,8 +370,8 @@ module.exports = {
       });
       if (!deposit) return response.error(res, 404, "ไม่พบข้อมูลมัดจำ");
       return response.success(res, 200, "ข้อมูลมัดจำ", deposit);
-    } catch (e) {
-      return response.error(res, 500, "Internal server error", e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 
@@ -372,11 +389,17 @@ module.exports = {
         return response.error(res, 400, "กรุณาระบุจำนวนเงินที่คืน");
       }
 
-      const rentalForRefund = await prisma.rental.findUnique({ where: { id: rentalId } });
+      const rentalForRefund = await prisma.rental.findUnique({
+        where: { id: rentalId },
+      });
       if (!rentalForRefund) return response.error(res, 404, "ไม่พบรายการเช่า");
 
       if (rentalForRefund.status !== "RETURNED") {
-        return response.error(res, 400, "สามารถคืนมัดจำได้เฉพาะรายการที่คืนสินค้าแล้วเท่านั้น (status: RETURNED)");
+        return response.error(
+          res,
+          400,
+          "สามารถคืนมัดจำได้เฉพาะรายการที่คืนสินค้าแล้วเท่านั้น (status: RETURNED)",
+        );
       }
 
       const deposit = await prisma.deposit.findUnique({ where: { rentalId } });
@@ -420,7 +443,7 @@ module.exports = {
         "คืนมัดจำสำเร็จ — กรุณาปิดรายการเช่าผ่าน PATCH /rentals/:id/complete",
         updated,
       );
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -461,7 +484,7 @@ module.exports = {
       );
 
       return response.success(res, 200, "อัปเดตยอดมัดจำสำเร็จ", updated);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -486,8 +509,8 @@ module.exports = {
       });
 
       return response.success(res, 200, "Deposit deducted", updated);
-    } catch (e) {
-      return response.error(res, 500, "Internal server error", e.message);
+    } catch {
+      return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
 };

@@ -44,8 +44,8 @@ module.exports = {
           where: { stock: { lt: 3 } },
           include: {
             product: { select: { id: true, name: true } },
-            size: true,
-            color: true,
+            size: { select: { id: true, name: true } },
+            color: { select: { id: true, name: true } },
           },
           take: 10,
           orderBy: { stock: "asc" },
@@ -80,7 +80,7 @@ module.exports = {
         },
         lowStockVariants,
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -142,7 +142,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -151,18 +151,22 @@ module.exports = {
   getRevenueReport: async (req, res) => {
     try {
       const now = new Date();
+      const startDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
-      const payments = await prisma.payment.findMany({
-        where: {
-          type: "RENTAL",
-          status: "APPROVED",
-          createdAt: {
-            gte: new Date(now.getFullYear(), now.getMonth() - 11, 1),
-          },
-        },
-        select: { amount: true, createdAt: true },
-      });
+      // Use SQL GROUP BY for aggregation instead of JavaScript
+      const monthlyRevenue = await prisma.$queryRaw`
+        SELECT 
+          TO_CHAR("createdAt", 'YYYY-MM') as month,
+          COALESCE(SUM("amount"), 0)::bigint as revenue
+        FROM "Payment"
+        WHERE type = 'RENTAL' 
+          AND status = 'APPROVED'
+          AND "createdAt" >= ${startDate}
+        GROUP BY TO_CHAR("createdAt", 'YYYY-MM')
+        ORDER BY month
+      `;
 
+      // Ensure all 12 months are present (fill with 0 if no data)
       const monthlyMap = {};
       for (let i = 11; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -170,10 +174,9 @@ module.exports = {
         monthlyMap[key] = 0;
       }
 
-      for (const p of payments) {
-        const d = new Date(p.createdAt);
-        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        if (key in monthlyMap) monthlyMap[key] += Number(p.amount);
+      // Merge SQL results with the map
+      for (const row of monthlyRevenue) {
+        monthlyMap[row.month] = Number(row.revenue);
       }
 
       const monthly = Object.entries(monthlyMap).map(([month, revenue]) => ({
@@ -181,7 +184,7 @@ module.exports = {
         revenue,
       }));
       return response.success(res, 200, "รายงานรายได้รายเดือน", { monthly });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -222,7 +225,7 @@ module.exports = {
       }));
 
       return response.success(res, 200, "สินค้าที่ถูกเช่าบ่อยที่สุด", enriched);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -257,7 +260,7 @@ module.exports = {
         page: Number(page),
         totalPages: Math.ceil(total / Number(limit)),
       });
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -273,7 +276,7 @@ module.exports = {
       });
 
       return response.success(res, 201, "บันทึก Audit Log สำเร็จ", log);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },
@@ -293,7 +296,7 @@ module.exports = {
       });
 
       return response.success(res, 200, `ลบ ${count} รายการสำเร็จ`);
-    } catch (e) {
+    } catch {
       return response.error(res, 500, "เกิดข้อผิดพลาดในระบบ");
     }
   },

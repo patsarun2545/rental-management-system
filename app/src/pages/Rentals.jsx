@@ -1,5 +1,5 @@
 import MyModal from "../components/MyModal";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { showSuccess, showError, showConfirm } from "../utils/alert.utils";
 import { getImageUrl } from "../utils/image.utils";
 import api from "../services/axios";
@@ -31,6 +31,83 @@ const STATUSES = [
   "CANCELLED",
   "COMPLETED",
 ];
+
+// Memoized table row component to prevent unnecessary re-renders
+const RentalTableRow = memo(
+  ({
+    item,
+    mgmtLoading,
+    handleConfirm,
+    handleActivate,
+    handleComplete,
+    handleCancel,
+    openMgmt,
+  }) => {
+    return (
+      <tr key={item.id}>
+        <td>
+          <code>{item.code}</code>
+        </td>
+        <td>{item.user?.name}</td>
+        <td>{new Date(item.startDate).toLocaleDateString("th-TH")}</td>
+        <td>{new Date(item.endDate).toLocaleDateString("th-TH")}</td>
+        <td>฿{item.totalPrice?.toLocaleString()}</td>
+        <td>
+          <span className={`badge bg-${STATUS_COLORS[item.status]}`}>
+            {item.status}
+          </span>
+        </td>
+        <td className="text-center">
+          <button
+            className="btn btn-outline-primary btn-sm me-1"
+            onClick={() => openMgmt(item)}
+            disabled={mgmtLoading}
+          >
+            {mgmtLoading ? (
+              <span className="spinner-border spinner-border-sm" />
+            ) : (
+              "จัดการ"
+            )}
+          </button>
+          {item.status === "PENDING" && (
+            <button
+              className="btn btn-outline-success btn-sm me-1"
+              onClick={() => handleConfirm(item)}
+            >
+              ยืนยัน
+            </button>
+          )}
+          {item.status === "CONFIRMED" && (
+            <button
+              className="btn btn-outline-info btn-sm me-1"
+              onClick={() => handleActivate(item)}
+            >
+              เปิดใช้งาน
+            </button>
+          )}
+          {item.status === "RETURNED" && (
+            <button
+              className="btn btn-outline-dark btn-sm me-1"
+              onClick={() => handleComplete(item)}
+            >
+              ปิดการเช่า
+            </button>
+          )}
+          {item.status === "PENDING" && (
+            <button
+              className="btn btn-outline-danger btn-sm"
+              onClick={() => handleCancel(item)}
+            >
+              ยกเลิก
+            </button>
+          )}
+        </td>
+      </tr>
+    );
+  },
+);
+
+RentalTableRow.displayName = "RentalTableRow";
 
 export default function Rentals() {
   // LIST STATE
@@ -117,19 +194,16 @@ export default function Rentals() {
   const [itemRemoving, setItemRemoving] = useState(null);
   const [itemEditing, setItemEditing] = useState(null);
 
-  const loadVariantOptions = () => {
-    api
-      .get("/api/products", { params: { limit: 500 } })
-      .then((r) => {
-        const variants = [];
-        (r.data.result.data || []).forEach((p) => {
-          (p.variants || []).forEach((v) =>
-            variants.push({ ...v, productName: p.name }),
-          );
-        });
-        setVariantOptions(variants);
-      })
-      .catch((e) => showError(e));
+  const loadVariantOptions = async (search = "") => {
+    try {
+      // Use a dedicated variants endpoint with search and smaller limit
+      const res = await api.get("/api/products/variants", {
+        params: { limit: 100, search },
+      });
+      setVariantOptions(res.data.result || []);
+    } catch (e) {
+      showError(e);
+    }
   };
 
   useEffect(() => {
@@ -594,71 +668,16 @@ export default function Rentals() {
                   </tr>
                 ) : (
                   data.map((item) => (
-                    <tr key={item.id}>
-                      <td>
-                        <code>{item.code}</code>
-                      </td>
-                      <td>{item.user?.name}</td>
-                      <td>
-                        {new Date(item.startDate).toLocaleDateString("th-TH")}
-                      </td>
-                      <td>
-                        {new Date(item.endDate).toLocaleDateString("th-TH")}
-                      </td>
-                      <td>฿{item.totalPrice?.toLocaleString()}</td>
-                      <td>
-                        <span
-                          className={`badge bg-${STATUS_COLORS[item.status]}`}
-                        >
-                          {item.status}
-                        </span>
-                      </td>
-                      <td className="text-center">
-                        <button
-                          className="btn btn-outline-primary btn-sm me-1"
-                          onClick={() => openMgmt(item)}
-                          disabled={mgmtLoading}
-                        >
-                          {mgmtLoading ? (
-                            <span className="spinner-border spinner-border-sm" />
-                          ) : (
-                            "จัดการ"
-                          )}
-                        </button>
-                        {item.status === "PENDING" && (
-                          <button
-                            className="btn btn-outline-success btn-sm me-1"
-                            onClick={() => handleConfirm(item)}
-                          >
-                            ยืนยัน
-                          </button>
-                        )}
-                        {item.status === "CONFIRMED" && (
-                          <button
-                            className="btn btn-outline-info btn-sm me-1"
-                            onClick={() => handleActivate(item)}
-                          >
-                            เปิดใช้งาน
-                          </button>
-                        )}
-                        {item.status === "RETURNED" && (
-                          <button
-                            className="btn btn-outline-dark btn-sm me-1"
-                            onClick={() => handleComplete(item)}
-                          >
-                            ปิดการเช่า
-                          </button>
-                        )}
-                        {item.status === "PENDING" && (
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => handleCancel(item)}
-                          >
-                            ยกเลิก
-                          </button>
-                        )}
-                      </td>
-                    </tr>
+                    <RentalTableRow
+                      key={item.id}
+                      item={item}
+                      mgmtLoading={mgmtLoading}
+                      handleConfirm={handleConfirm}
+                      handleActivate={handleActivate}
+                      handleComplete={handleComplete}
+                      handleCancel={handleCancel}
+                      openMgmt={openMgmt}
+                    />
                   ))
                 )}
               </tbody>

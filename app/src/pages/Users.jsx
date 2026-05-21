@@ -1,5 +1,5 @@
 import MyModal from "../components/MyModal";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { showSuccess, showError, showConfirm } from "../utils/alert.utils";
 import api from "../services/axios";
 
@@ -13,6 +13,93 @@ const RENTAL_STATUS_COLORS = {
   COMPLETED: "dark",
 };
 
+// Memoized table row component to prevent unnecessary re-renders
+const UserTableRow = memo(
+  ({
+    item,
+    removing,
+    setProfileForm,
+    setProfileOpen,
+    setRoleForm,
+    setRoleOpen,
+    openDetail,
+    handleRemove,
+  }) => {
+    return (
+      <tr key={item.id}>
+        <td>{item.id}</td>
+        <td>{item.name}</td>
+        <td>{item.email}</td>
+        <td>{item.phone || "-"}</td>
+        <td>
+          <span
+            className={`badge bg-${item.role === "ADMIN" ? "danger" : "secondary"}`}
+          >
+            {item.role}
+          </span>
+        </td>
+        <td>{new Date(item.createdAt).toLocaleDateString("th-TH")}</td>
+        <td className="text-center">
+          <button
+            className="btn btn-outline-secondary btn-sm me-1"
+            disabled={!!removing}
+            onClick={() => {
+              setProfileForm({
+                id: item.id,
+                name: item.name,
+                phone: item.phone || "",
+              });
+              setProfileOpen(true);
+            }}
+          >
+            แก้ไข
+          </button>
+          <button
+            className="btn btn-outline-primary btn-sm me-1"
+            disabled={!!removing}
+            onClick={() => {
+              setRoleForm({ id: item.id, role: item.role });
+              setRoleOpen(true);
+            }}
+          >
+            Role
+          </button>
+          <button
+            className="btn btn-outline-info btn-sm me-1"
+            disabled={!!removing}
+            onClick={() => openDetail(item, "address")}
+          >
+            ที่อยู่
+          </button>
+          <button
+            className="btn btn-outline-success btn-sm me-1"
+            disabled={!!removing}
+            onClick={() => openDetail(item, "rentals")}
+          >
+            เช่า
+          </button>
+          <button
+            className="btn btn-outline-danger btn-sm"
+            disabled={!!removing}
+            onClick={() => handleRemove(item)}
+          >
+            {removing === item.id ? (
+              <>
+                <span className="spinner-border spinner-border-sm me-1" />
+                ลบ...
+              </>
+            ) : (
+              "ลบ"
+            )}
+          </button>
+        </td>
+      </tr>
+    );
+  },
+);
+
+UserTableRow.displayName = "UserTableRow";
+
 export default function Users() {
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
@@ -24,7 +111,12 @@ export default function Users() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   // CREATE USER MODAL
-  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", phone: "" });
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
   const [createSaving, setCreateSaving] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -95,7 +187,11 @@ export default function Users() {
   // CREATE USER HANDLER
   const handleCreateUser = async () => {
     if (createSaving) return;
-    if (!createForm.name.trim() || !createForm.email.trim() || !createForm.password) {
+    if (
+      !createForm.name.trim() ||
+      !createForm.email.trim() ||
+      !createForm.password
+    ) {
       return showError("กรุณากรอกข้อมูลให้ครบ");
     }
     try {
@@ -339,76 +435,17 @@ export default function Users() {
                   </tr>
                 ) : (
                   data.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.id}</td>
-                      <td>{item.name}</td>
-                      <td>{item.email}</td>
-                      <td>{item.phone || "-"}</td>
-                      <td>
-                        <span
-                          className={`badge bg-${item.role === "ADMIN" ? "danger" : "secondary"}`}
-                        >
-                          {item.role}
-                        </span>
-                      </td>
-                      <td>
-                        {new Date(item.createdAt).toLocaleDateString("th-TH")}
-                      </td>
-                      <td className="text-center">
-                        <button
-                          className="btn btn-outline-secondary btn-sm me-1"
-                          disabled={!!removing}
-                          onClick={() => {
-                            setProfileForm({
-                              id: item.id,
-                              name: item.name,
-                              phone: item.phone || "",
-                            });
-                            setProfileOpen(true);
-                          }}
-                        >
-                          แก้ไข
-                        </button>
-                        <button
-                          className="btn btn-outline-primary btn-sm me-1"
-                          disabled={!!removing}
-                          onClick={() => {
-                            setRoleForm({ id: item.id, role: item.role });
-                            setRoleOpen(true);
-                          }}
-                        >
-                          Role
-                        </button>
-                        <button
-                          className="btn btn-outline-info btn-sm me-1"
-                          disabled={!!removing}
-                          onClick={() => openDetail(item, "address")}
-                        >
-                          ที่อยู่
-                        </button>
-                        <button
-                          className="btn btn-outline-success btn-sm me-1"
-                          disabled={!!removing}
-                          onClick={() => openDetail(item, "rentals")}
-                        >
-                          เช่า
-                        </button>
-                        <button
-                          className="btn btn-outline-danger btn-sm"
-                          disabled={!!removing}
-                          onClick={() => handleRemove(item)}
-                        >
-                          {removing === item.id ? (
-                            <>
-                              <span className="spinner-border spinner-border-sm me-1" />
-                              ลบ...
-                            </>
-                          ) : (
-                            "ลบ"
-                          )}
-                        </button>
-                      </td>
-                    </tr>
+                    <UserTableRow
+                      key={item.id}
+                      item={item}
+                      removing={removing}
+                      setProfileForm={setProfileForm}
+                      setProfileOpen={setProfileOpen}
+                      setRoleForm={setRoleForm}
+                      setRoleOpen={setRoleOpen}
+                      openDetail={openDetail}
+                      handleRemove={handleRemove}
+                    />
                   ))
                 )}
               </tbody>
@@ -454,7 +491,9 @@ export default function Users() {
           className="form-control mb-2"
           placeholder="ชื่อ-นามสกุล"
           value={createForm.name}
-          onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+          onChange={(e) =>
+            setCreateForm((p) => ({ ...p, name: e.target.value }))
+          }
           disabled={createSaving}
         />
         <label className="form-label">อีเมล</label>
@@ -463,7 +502,9 @@ export default function Users() {
           className="form-control mb-2"
           placeholder="you@example.com"
           value={createForm.email}
-          onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+          onChange={(e) =>
+            setCreateForm((p) => ({ ...p, email: e.target.value }))
+          }
           disabled={createSaving}
         />
         <label className="form-label">เบอร์โทร (ถ้ามี)</label>
@@ -472,7 +513,9 @@ export default function Users() {
           className="form-control mb-2"
           placeholder="0812345678"
           value={createForm.phone}
-          onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value }))}
+          onChange={(e) =>
+            setCreateForm((p) => ({ ...p, phone: e.target.value }))
+          }
           disabled={createSaving}
         />
         <label className="form-label">รหัสผ่าน</label>
@@ -481,7 +524,9 @@ export default function Users() {
           className="form-control mb-3"
           placeholder="อย่างน้อย 8 ตัว, มีตัวพิมพ์ใหญ่และตัวเลข"
           value={createForm.password}
-          onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+          onChange={(e) =>
+            setCreateForm((p) => ({ ...p, password: e.target.value }))
+          }
           onKeyDown={(e) => e.key === "Enter" && handleCreateUser()}
           disabled={createSaving}
         />
@@ -789,7 +834,9 @@ export default function Users() {
                               <code>{r.code}</code>
                             </td>
                             <td>
-                              {new Date(r.startDate).toLocaleDateString("th-TH")}
+                              {new Date(r.startDate).toLocaleDateString(
+                                "th-TH",
+                              )}
                             </td>
                             <td>
                               {new Date(r.endDate).toLocaleDateString("th-TH")}
@@ -822,7 +869,9 @@ export default function Users() {
                     </span>
                     <button
                       className="btn btn-outline-secondary btn-sm ms-2"
-                      disabled={rentalPage >= rentalTotalPages || rentalsLoading}
+                      disabled={
+                        rentalPage >= rentalTotalPages || rentalsLoading
+                      }
                       onClick={() => setRentalPage((p) => p + 1)}
                     >
                       Next
