@@ -2,6 +2,7 @@
 # dependencies
 # ======================
 node_modules/
+jspm_packages/
 
 # ======================
 # env
@@ -14,6 +15,7 @@ node_modules/
 # uploads
 # ======================
 uploads/
+src/assets/uploads/
 
 # ======================
 # prisma generated
@@ -27,22 +29,42 @@ logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
 # ======================
 # build
 # ======================
 dist/
 build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
 
 # ======================
 # test
 # ======================
 coverage/
+.nyc_output/
+
+# ======================
+# TypeScript
+# ======================
+*.tsbuildinfo
+*.js.map
+*.d.ts.map
 
 # ======================
 # OS
 # ======================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # ======================
@@ -50,9 +72,25 @@ Thumbs.db
 # ======================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ======================
+# package managers
+# ======================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # ======================
 # misc
 # ======================
 *.txt
 *.tmp
+.cache/
+.parcel-cache/
+.eslintcache

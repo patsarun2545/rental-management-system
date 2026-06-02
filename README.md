@@ -1,134 +1,179 @@
-# 🧾 Rental Management System (RMS)
+# 🧾 Rental Management System
 
 [![Live Demo](https://img.shields.io/badge/Live-Demo-000?style=flat-square&logo=vercel&logoColor=white)](https://rental-management-system-blush.vercel.app/)
 
-A backend admin system for managing dress/costume rentals — covering inventory, rentals, payments, deposits, penalties, reports, and audit logs.
+A full-stack rental management system for dress/costume rentals built with React 19, Express.js, and PostgreSQL — featuring inventory management, rental lifecycle tracking, payment processing, deposit handling, and comprehensive admin reporting.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React.js, Bootstrap 5, AdminLTE |
-| Backend | Node.js, Express.js |
-| Database | PostgreSQL, Prisma ORM |
-| Auth | JWT (Cookie + Bearer Token), RBAC |
-| Alert | SweetAlert2 |
-| Tools | Postman, PM2, Ubuntu Linux |
+| Layer      | Technology                              |
+| ---------- | --------------------------------------- |
+| Framework  | React 19, Express.js                    |
+| Frontend   | React 19, Vite, React Router DOM, Axios |
+| Backend    | Node.js, Express.js                     |
+| Runtime    | Node.js                                 |
+| Database   | PostgreSQL, Prisma ORM                  |
+| Auth       | JWT (jsonwebtoken), bcryptjs, RBAC      |
+| Storage    | Multer (local file upload)              |
+| Validation | Manual validation (regex patterns)      |
+| Caching    | None                                    |
+| UI Extras  | SweetAlert2, Chart.js, react-chartjs-2  |
+| Tools      | TypeScript, ESLint, Nodemon             |
+
+---
+
+## ✨ Features Overview
+
+- Role-based access control (RBAC) with ADMIN and USER roles
+- Authentication system with JWT tokens (4-hour expiration) stored in cookies and localStorage
+- User management with profile editing, password changes, and address management
+- Product catalog with categories, types, sizes, and colors
+- Product management with variants, images, and soft-delete functionality
+- Full rental lifecycle management (PENDING → CONFIRMED → ACTIVE → RETURNED → COMPLETED)
+- Stock reservation system to prevent double-booking
+- Payment slip upload with admin approval/rejection workflow
+- Deposit management (create, adjust, refund, deduct)
+- Penalty tracking for late returns, damage, and lost items
+- Return logging with item condition tracking
+- Auto-generated invoices (format: INV-YYYYMMDD-XXXX)
+- Cart and wishlist functionality
+- Promotion/discount management
+- Admin dashboard with revenue charts, top products, and overdue rentals
+- Audit log for tracking admin actions
+- Race condition prevention using PostgreSQL row-level locks
 
 ---
 
 ## 📁 Project Structure
 
 ```
-root/
-├── api/                          # Backend (Express.js)
-│   ├── prisma/                   # Prisma schema & migrations
+rental/
+├── api/                                    # Backend (Express.js + TypeScript)
+│   ├── prisma/
+│   │   ├── schema.prisma                   # Prisma schema with all models
+│   │   └── migrations/                     # Database migrations
 │   ├── src/
-│   │   ├── assets/uploads/       # Uploaded images (slips, products)
+│   │   ├── assets/uploads/                 # Uploaded images (payment slips, product images)
 │   │   ├── controllers/
-│   │   │   ├── admin_controller.js      # Dashboard, Reports, Audit Log
-│   │   │   ├── auth_controller.js       # Sign up, Sign in, Sign out, Me
-│   │   │   ├── cart_controller.js       # Cart management
-│   │   │   ├── catalog_controller.js    # Categories, Types, Sizes, Colors
-│   │   │   ├── payment_controller.js    # Payments, Invoices
-│   │   │   ├── product_controller.js    # Products, Variants, Images
-│   │   │   ├── promotion_controller.js  # Promotions
-│   │   │   ├── rental_controller.js     # Rentals, Items, Reservations
-│   │   │   ├── return_controller.js     # Returns, Penalties, Deposits
-│   │   │   ├── user_controller.js       # Users, Addresses
-│   │   │   └── wishlist_controller.js   # Wishlist
+│   │   │   ├── admin_controller.js         # Dashboard, reports, audit logs, staff management
+│   │   │   ├── auth_controller.js          # Sign up, sign in, sign out, me endpoint
+│   │   │   ├── cart_controller.js          # Cart CRUD operations
+│   │   │   ├── catalog_controller.js      # Categories, types, sizes, colors management
+│   │   │   ├── payment_controller.js      # Payments, invoices, approval workflow
+│   │   │   ├── product_controller.js      # Products, variants, images with soft-delete
+│   │   │   ├── promotion_controller.js    # Promotion/discount management
+│   │   │   ├── rental_controller.js       # Rentals, items, reservations, status transitions
+│   │   │   ├── return_controller.js       # Returns, penalties, deposit operations
+│   │   │   ├── user_controller.js         # Users, addresses, role management
+│   │   │   └── wishlist_controller.js     # Wishlist operations
 │   │   ├── lib/
-│   │   │   └── client.js         # Prisma client instance
+│   │   │   └── client.js                  # Prisma client singleton
 │   │   ├── middlewares/
-│   │   │   ├── auth.middleware.js
-│   │   │   ├── cors.middleware.js
-│   │   │   ├── Isadmin.middleware.js
-│   │   │   └── upload.middleware.js
+│   │   │   ├── auth.middleware.js         # JWT validation (cookie + bearer token)
+│   │   │   ├── cors.middleware.js         # CORS configuration
+│   │   │   ├── Isadmin.middleware.js      # Admin role check
+│   │   │   └── upload.middleware.js       # Multer file upload (images, max 5MB)
 │   │   ├── routes/
-│   │   │   ├── index.js
-│   │   │   ├── admin_routes.js
-│   │   │   ├── auth_routes.js
-│   │   │   ├── cart_routes.js
-│   │   │   ├── catalog_routes.js
-│   │   │   ├── payment_routes.js
-│   │   │   ├── product_routes.js
-│   │   │   ├── promotion_routes.js
-│   │   │   ├── rental_routes.js
-│   │   │   ├── user_routes.js
-│   │   │   └── wishlist_routes.js
+│   │   │   ├── index.js                   # Main router aggregation
+│   │   │   ├── admin_routes.js            # Admin endpoints (dashboard, audit, reservations)
+│   │   │   ├── auth_routes.js             # Authentication endpoints
+│   │   │   ├── cart_routes.js             # Cart endpoints
+│   │   │   ├── catalog_routes.js          # Catalog endpoints (categories, types, sizes, colors)
+│   │   │   ├── payment_routes.js          # Payment and invoice endpoints
+│   │   │   ├── product_routes.js          # Product, variant, and image endpoints
+│   │   │   ├── promotion_routes.js        # Promotion endpoints
+│   │   │   ├── rental_routes.js           # Rental, item, and reservation endpoints
+│   │   │   ├── user_routes.js             # User and address endpoints
+│   │   │   └── wishlist_routes.js         # Wishlist endpoints
 │   │   ├── utils/
-│   │   │   └── response.utils.js
-│   │   └── app.js
-│   ├── .env
-│   ├── package.json
-│   ├── prisma.config.ts
-│   └── server.js
+│   │   │   └── response.utils.js          # Standardized API response helper
+│   │   └── app.js                         # Express app configuration
+│   ├── .env                               # Environment variables (gitignored)
+│   ├── package.json                       # Backend dependencies
+│   ├── prisma.config.ts                   # Prisma configuration
+│   ├── server.js                          # Server entry point
+│   └── tsconfig.json                      # TypeScript configuration
 │
-└── frontend/                     # Frontend (React.js)
-    └── src/
-        ├── components/
-        │   ├── AuthGuard.jsx      # Route guard — ADMIN role only
-        │   ├── Footer.jsx
-        │   ├── MyModal.jsx        # Reusable modal component
-        │   ├── Navbar.jsx         # Top navbar with current path
-        │   ├── Sidebar.jsx        # Sidebar nav + profile/password/address modals
-        │   └── Wrapper.jsx        # Main content wrapper
-        ├── context/
-        │   └── AuthContext.jsx    # JWT auth state (localStorage)
-        ├── pages/
-        │   ├── AuditLogs.jsx
-        │   ├── Categories.jsx
-        │   ├── Dashboard.jsx
-        │   ├── Deposits.jsx
-        │   ├── Invoices.jsx
-        │   ├── Payments.jsx
-        │   ├── Products.jsx
-        │   ├── Promotions.jsx
-        │   ├── Rentals.jsx
-        │   ├── Reports.jsx
-        │   ├── Reservations.jsx
-        │   ├── Returns.jsx
-        │   ├── Signin.jsx
-        │   ├── Signup.jsx
-        │   ├── Sizescolors.jsx
-        │   ├── Types.jsx
-        │   └── Users.jsx
-        ├── services/
-        │   └── axios.js           # Axios instance + Bearer token interceptor
-        └── utils/
-            ├── alert.utils.jsx    # SweetAlert2 wrappers
-            └── image.utils.jsx    # getImageUrl(path)
+└── app/                                    # Frontend (React 19 + Vite)
+    ├── public/                             # Static assets
+    ├── src/
+    │   ├── assets/                         # Frontend assets
+    │   ├── components/
+    │   │   ├── AuthGuard.jsx               # Route guard - ADMIN role only
+    │   │   ├── Footer.jsx                  # Footer component
+    │   │   ├── MyModal.jsx                 # Reusable modal component
+    │   │   ├── Navbar.jsx                  # Top navbar with current path
+    │   │   ├── Sidebar.jsx                 # Sidebar navigation with profile/password/address modals
+    │   │   └── Wrapper.jsx                 # Main content wrapper
+    │   ├── context/
+    │   │   └── AuthContext.jsx             # JWT auth state management (localStorage)
+    │   ├── layouts/
+    │   │   └── BaseLayout.jsx              # Base layout with Navbar and Sidebar
+    │   ├── pages/
+    │   │   ├── AuditLogs.jsx               # Audit log viewer
+    │   │   ├── Categories.jsx              # Category management
+    │   │   ├── Dashboard.jsx               # Admin dashboard with charts
+    │   │   ├── Deposits.jsx                # Deposit management
+    │   │   ├── Invoices.jsx                # Invoice generation and viewing
+    │   │   ├── Payments.jsx                # Payment slip review and approval
+    │   │   ├── Products.jsx                # Product, variant, and image management
+    │   │   ├── Promotions.jsx              # Promotion management
+    │   │   ├── Rentals.jsx                 # Rental management and status updates
+    │   │   ├── Reports.jsx                 # Revenue and rental reports
+    │   │   ├── Reservations.jsx            # Stock reservation viewer
+    │   │   ├── Returns.jsx                 # Return processing and penalty management
+    │   │   ├── Signin.jsx                  # Sign in page
+    │   │   ├── Signup.jsx                  # Sign up page
+    │   │   ├── Sizescolors.jsx             # Sizes and colors management
+    │   │   ├── Types.jsx                   # Type management
+    │   │   └── Users.jsx                   # User management
+    │   ├── services/
+    │   │   └── axios.js                    # Axios instance with Bearer token interceptor
+    │   ├── utils/
+    │   │   ├── alert.utils.jsx             # SweetAlert2 wrapper functions
+    │   │   └── image.utils.jsx             # Image URL helper
+    │   ├── App.jsx                         # React Router configuration
+    │   ├── App.css                         # Global styles
+    │   ├── index.css                       # Base styles
+    │   └── main.jsx                        # React entry point
+    ├── .env                                # Environment variables (gitignored)
+    ├── config.js                           # API server configuration
+    ├── index.html                          # HTML template
+    ├── package.json                        # Frontend dependencies
+    ├── vite.config.js                      # Vite configuration
+    └── vercel.json                         # Vercel deployment configuration
 ```
 
 ---
 
-## ✨ Features Overview
+## 🗃️ Database Schema
 
-- Role-based access control — only `ADMIN` users can access the Admin Panel
-- Full rental lifecycle management with status tracking
-- Payment slip upload and admin review/approval system
-- Race condition prevention using PostgreSQL row-level locks (`FOR UPDATE`, `pg_advisory_xact_lock`)
-- Deposit management — create, adjust amount, partial refund, or deduct from deposit
-- Penalty tracking for late returns, damage, and lost items
-- Auto-generated Invoices per rental (Invoice No format: `INV-YYYYMMDD-XXXX`)
-- Stock reservation checks to prevent double-booking
-- Monthly revenue reports (last 12 months), Top 10 products, and overdue rentals
-- Audit log recording key admin actions (payment approve/reject, etc.)
-- Admin can edit profile, change password, and manage addresses from the Sidebar
-- Soft-delete for products — deleted items can be restored; prevents deletion of Categories/Types that have associated products
-
----
-
-## 🔐 Middleware
-
-| Middleware | File | Responsibility |
-|-----------|------|----------------|
-| Auth | `auth.middleware.js` | Validates JWT from Cookie or `Authorization: Bearer <token>` |
-| Admin | `Isadmin.middleware.js` | Checks `role === "ADMIN"` — returns 403 if not |
-| Upload | `upload.middleware.js` | Accepts image files (JPEG, PNG, WEBP, max 5MB) via Multer |
-| CORS | `cors.middleware.js` | Allows origin from `CLIENT_URL` with credentials |
+| Model              | Description                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`             | User accounts with email, password (bcrypt hashed), name, phone, and role (USER/ADMIN)                                                       |
+| `Address`          | User addresses linked to User model                                                                                                          |
+| `Category`         | Product categories (e.g., dresses, costumes)                                                                                                 |
+| `Type`             | Product types linked to categories (unique name per category)                                                                                |
+| `Size`             | Product sizes (e.g., S, M, L, XL)                                                                                                            |
+| `Color`            | Product colors with hex codes                                                                                                                |
+| `Product`          | Products with name, description, brand, price, status (ACTIVE/INACTIVE), soft-delete support                                                 |
+| `ProductVariant`   | Product variants combining product, size, color with price, stock, and unique SKU                                                            |
+| `ProductImage`     | Product images with main image flag                                                                                                          |
+| `Rental`           | Rental records with code, dates, status (PENDING/CONFIRMED/ACTIVE/RETURNED/LATE/CANCELLED/COMPLETED), payment status, pricing, and promotion |
+| `RentalItem`       | Items within a rental linking to product variants with quantity                                                                              |
+| `Payment`          | Payment records with amount, slip image URL, type (RENTAL/DEPOSIT/PENALTY), and status (PENDING/APPROVED/REJECTED)                           |
+| `Invoice`          | Auto-generated invoices with unique invoice number and total amount                                                                          |
+| `Deposit`          | Security deposits with amount and status (HELD/REFUNDED/DEDUCTED)                                                                            |
+| `Penalty`          | Penalty records for late returns, damage, or lost items                                                                                      |
+| `ReturnLog`        | Return records with date, condition (GOOD/DAMAGED/LOST), and notes                                                                           |
+| `StockReservation` | Stock reservations preventing double-booking with date ranges                                                                                |
+| `Cart`             | User shopping carts                                                                                                                          |
+| `CartItem`         | Items in user carts                                                                                                                          |
+| `Wishlist`         | User wishlists linking users to products                                                                                                     |
+| `Promotion`        | Promotions with discount percentage and date ranges                                                                                          |
+| `AuditLog`         | Audit trail recording admin actions with timestamps                                                                                          |
 
 ---
 
@@ -136,265 +181,235 @@ root/
 
 ### 01 · Authentication
 
-Only users with `role = ADMIN` can access the Admin Panel.
-
 ```
-POST /api/auth/signUp   → Register a new account
-POST /api/auth/signIn   → Sign in (returns JWT token)
-POST /api/auth/signOut  → Sign out (clears cookie)
-GET  /api/auth/me       → Get current user info from token
+Sign Up → Create User (role: USER) → Sign In → JWT Token (4h expiry) → Access Protected Routes
 ```
 
-The frontend stores the JWT in `localStorage` and sends it as `Authorization: Bearer <token>` on every request via an Axios interceptor.
+- Users can sign up with email, password, name, and phone (optional)
+- Password validation: minimum 8 characters, at least 1 uppercase letter, 1 number
+- Email format validation with regex
+- Phone format validation (Thai format: 0XXXXXXXXX)
+- Passwords hashed with bcrypt (12 rounds)
+- JWT tokens stored in httpOnly cookies and localStorage
+- Token sent via Authorization: Bearer header on API requests
+- Automatic redirect to sign-in on 401 responses
+
+**User Roles:**
+| Role | Description |
+|------|-------------|
+| `USER` | Standard user (can be promoted to ADMIN) |
+| `ADMIN` | Administrator with full system access |
 
 ---
 
-### 02 · Master Data Setup
-
-Configure base data before creating rentals:
+### 02 · Master Data Management
 
 ```
-GET/POST/PUT/DELETE /api/catalog/categories   → Categories (cannot delete if linked to Types or products)
-GET/POST/PUT/DELETE /api/catalog/types        → Types, linked to a Category
-GET/POST/PUT/DELETE /api/catalog/sizes        → Sizes (cannot delete if used by a variant)
-GET/POST/PUT/DELETE /api/catalog/colors       → Colors + hex code (cannot delete if used by a variant)
-GET/POST/PUT/DELETE /api/promotions           → Promotions (discount %, date range)
+Create Categories → Create Types (per Category) → Create Sizes → Create Colors → Create Products → Add Variants → Upload Images
 ```
 
-Then create **Products + Variants**:
+- Categories cannot be deleted if linked to types or products
+- Types are unique within each category
+- Sizes and colors cannot be deleted if used by variants
+- Products support soft-delete (isDeleted flag) and can be restored
+- Product variants combine product, size, and color with unique SKU
+- Multiple images per product with main image flag
+- Stock management at variant level
 
-```
-POST   /api/products                       → Create a product
-GET    /api/products                       → List products (filter, search, pagination)
-GET    /api/products/:id                   → Get product + variants + images
-PUT    /api/products/:id                   → Update product
-PATCH  /api/products/:id/toggle-status     → Toggle product status (ACTIVE/INACTIVE)
-DELETE /api/products/:id                   → Soft-delete product
-PATCH  /api/products/:id/restore           → Restore soft-deleted product
-GET    /api/products/deleted               → List soft-deleted products
-
-POST   /api/products/:id/variants          → Add a variant (size, color, price, stock)
-GET    /api/products/:id/variants          → List variants for a product
-GET    /api/variants/:id                   → Get a single variant
-PUT    /api/variants/:id                   → Update a variant
-PATCH  /api/variants/:id/stock             → Update stock count
-DELETE /api/variants/:id                   → Delete a variant
-
-POST   /api/products/:id/images            → Upload product images (multiple at once)
-GET    /api/products/:id/images            → List product images
-PATCH  /api/images/:id/main                → Set as main image
-PUT    /api/images/:id                     → Replace image (removes old file from disk)
-DELETE /api/images/:id                     → Delete image
-```
+**Product Status:**
+| Status | Description |
+|--------|-------------|
+| `ACTIVE` | Available for rental |
+| `INACTIVE` | Not available for rental |
 
 ---
 
-### 03 · Create Rental
-
-Admin creates a rental by selecting:
-
-1. **Customer** — from `/api/users` (role = USER)
-2. **Date range** — `startDate` / `endDate`
-3. **Items** — select Variant + quantity
-4. **Extras** — deposit amount, late fee per day (`lateFeePerDay`), promotion
+### 03 · Rental Creation Flow
 
 ```
-POST /api/rentals
+Select Customer → Choose Date Range → Add Items (Variant + Quantity) → Set Deposit & Late Fee → Apply Promotion → Create Rental → Auto-generate Code & Stock Reservation
 ```
 
-The system auto-generates a **Rental Code** and creates a **Stock Reservation** automatically.
-
-After creation, Admin can:
-
-```
-GET    /api/rentals                             → List all rentals (filter, pagination)
-GET    /api/rentals/:id                         → Get rental details
-PATCH  /api/rentals/:id/status                  → Update status directly
-PATCH  /api/rentals/:id/cancel                  → Cancel rental (stock released automatically)
-PATCH  /api/rentals/:id/confirm                 → PENDING → CONFIRMED + reserve stock
-PATCH  /api/rentals/:id/activate                → CONFIRMED → ACTIVE
-PATCH  /api/rentals/:id/pickup                  → Record actual customer pickup date
-PATCH  /api/rentals/:id/complete                → RETURNED → COMPLETED
-PATCH  /api/rentals/:id/payment-status          → Override paymentStatus directly
-
-GET    /api/rentals/:id/items                   → List items in a rental
-GET    /api/rentals/:id/items/:itemId           → Get a single rental item
-POST   /api/rentals/:id/items                   → Add an item
-PATCH  /api/rentals/:id/items/:itemId           → Update an item
-DELETE /api/rentals/:id/items/:itemId           → Remove an item
-
-GET    /api/rentals/handled                     → Rentals managed by the current Admin
-GET    /api/admin/staff/:adminId                → Profile of any Admin
-GET    /api/admin/staff/:adminId/rentals        → Rentals managed by a specific Admin
-```
+- Admin selects customer from user list (role: USER)
+- Date range validation with stock availability check
+- Multiple items per rental with quantity
+- Optional deposit amount and late fee per day
+- Promotion application for discounts
+- Auto-generated unique rental code
+- Automatic stock reservation creation
+- Admin assigned as handler
 
 ---
 
-### 04 · Rental Status Flow
+### 04 · Rental Status Transitions
 
 ```
 PENDING → CONFIRMED → ACTIVE → RETURNED → COMPLETED
+         ↓
+      CANCELLED
+         ↓
+          LATE (if past endDate)
 ```
 
+| Status      | Description                        | Transitions            |
+| ----------- | ---------------------------------- | ---------------------- |
+| `PENDING`   | Awaiting admin confirmation        | → CONFIRMED, CANCELLED |
+| `CONFIRMED` | Admin confirmed, stock reserved    | → ACTIVE               |
+| `ACTIVE`    | Customer has received items        | → RETURNED, LATE       |
+| `RETURNED`  | Items returned by customer         | → COMPLETED            |
+| `COMPLETED` | Rental closed successfully         | -                      |
+| `LATE`      | Past endDate, not returned         | → RETURNED             |
+| `CANCELLED` | Cancelled by admin, stock released | -                      |
+
+**Payment Status:**
 | Status | Description |
 |--------|-------------|
-| `PENDING` | Awaiting Admin confirmation |
-| `CONFIRMED` | Admin confirmed + stock reserved |
-| `ACTIVE` | Customer has received the items |
-| `RETURNED` | Customer has returned the items |
-| `COMPLETED` | Rental closed successfully |
-| `LATE` | Past `endDate` and not yet returned |
-| `CANCELLED` | Cancelled by Admin — stock has been released |
+| `PENDING` | Payment awaiting approval |
+| `APPROVED` | Payment approved |
+| `REJECTED` | Payment rejected |
 
 ---
 
-### 05 · Payments
-
-Customer uploads a payment slip; Admin reviews and approves or rejects it.
+### 05 · Payment Processing
 
 ```
-GET    /api/payments                        → List all payments (filter: status, type)
-GET    /api/payments/:id                    → Get a single payment (Admin or owner)
-GET    /api/payments/rental/:rentalId       → Payment history for a rental
-POST   /api/payments                        → Record payment + upload slip (multipart/form-data)
-PATCH  /api/payments/:id/approve            → Approve (uses row-level lock to prevent race conditions)
-PATCH  /api/payments/:id/reject             → Reject
+Customer Uploads Slip → Admin Reviews → Approve/Reject → Update Rental Payment Status
 ```
+
+- Payment types: RENTAL, DEPOSIT, PENALTY
+- Slip upload via multipart/form-data
+- Admin approval uses row-level locks to prevent race conditions
+- RENTAL payment approval sets rental paymentStatus to APPROVED when fully paid
+- DEPOSIT payment approval creates Deposit record
+- PENALTY payments for additional charges
 
 **Payment Types:**
-
 | Type | Description |
 |------|-------------|
-| `RENTAL` | Rental fee — when `totalPrice` is fully paid, `paymentStatus` is automatically set to `APPROVED` |
-| `DEPOSIT` | Security deposit — approval automatically creates a Deposit record |
-| `PENALTY` | Penalty/fine |
-
-**Payment Status:** `PENDING` → `APPROVED` / `REJECTED`
+| `RENTAL` | Rental fee payment |
+| `DEPOSIT` | Security deposit payment |
+| `PENALTY` | Penalty/fine payment |
 
 ---
 
-### 06 · Deposit (Security Deposit)
+### 06 · Deposit Management
 
 ```
-POST   /api/rentals/:id/deposit          → Create a deposit
-GET    /api/rentals/:id/deposit          → Get deposit info for a rental
-PATCH  /api/rentals/:id/deposit          → Adjust deposit amount (only when status = HELD)
-PATCH  /api/rentals/:id/deposit/refund   → Refund deposit (specify refundedAmount)
-PATCH  /api/rentals/:id/deposit/deduct   → Deduct from deposit (specify amount)
-GET    /api/admin/deposits               → List all deposits in the system (filter: status)
+Create Deposit → Hold Amount → Adjust (if HELD) → Refund/Deduct → Update Status
 ```
 
+- Deposit created per rental
+- Status: HELD (modifiable), REFUNDED (refunded to customer), DEDUCTED (deducted due to damage/loss)
+- Partial refunds supported
+- Deductions for damage or loss scenarios
+
+**Deposit Status:**
 | Status | Description |
 |--------|-------------|
-| `HELD` | On hold — can still be modified |
-| `REFUNDED` | Refunded to the customer |
-| `DEDUCTED` | Deducted due to damage or loss |
+| `HELD` | Deposit on hold, can be modified |
+| `REFUNDED` | Deposit refunded to customer |
+| `DEDUCTED` | Deposit deducted due to issues |
 
 ---
 
-### 07 · Returns & Closing
+### 07 · Return & Penalty Flow
 
 ```
-POST   /api/rentals/:id/return                 → Record return (date, condition per item, notes)
-POST   /api/rentals/:id/penalties              → Add a penalty
-GET    /api/rentals/:id/penalties              → List all penalties for a rental
-PATCH  /api/rentals/:id/penalties/:pid         → Update a penalty
-DELETE /api/rentals/:id/penalties/:pid         → Remove a penalty
-
-POST   /api/rentals/:id/invoice                → Generate Invoice (total = totalPrice + penalties)
-GET    /api/rentals/:id/invoice                → Get Invoice for a rental
-GET    /api/payments/invoices                  → List all Invoices (Admin)
-GET    /api/invoices/:invoiceNo                → Get Invoice by Invoice No (Admin or owner)
-
-PATCH  /api/rentals/:id/complete               → Close rental → COMPLETED
+Record Return → Inspect Items → Add Penalties (if needed) → Generate Invoice → Complete Rental
 ```
 
-**Return Flow:**
+- Return date and condition per item
+- Item conditions: GOOD, DAMAGED, LOST
+- Penalty types: LATE (per day), DAMAGE, LOST
+- Multiple penalties per rental
+- Invoice generation (total = rental price + penalties)
+- Final completion closes rental
 
-```
-ACTIVE / LATE → RETURNED → Inspect items + Add penalties → Generate Invoice → COMPLETED
-```
+**Item Conditions:**
+| Condition | Description |
+|-----------|-------------|
+| `GOOD` | Returned in good condition |
+| `DAMAGED` | Returned with damage |
+| `LOST` | Item not returned |
 
-**Item Conditions:** `GOOD` / `DAMAGED` / `LOST`
-
-**Penalty Types:** `LATE` / `DAMAGE` / `LOST`
+**Penalty Types:**
+| Type | Description |
+|------|-------------|
+| `LATE` | Late return penalty |
+| `DAMAGE` | Damage penalty |
+| `LOST` | Lost item penalty |
 
 ---
 
-### 08 · Stock Reservations
+### 08 · Stock Reservation System
 
 ```
-GET    /api/admin/reservations              → List all reservations (filter: productVariantId)
-GET    /api/admin/reservations/check        → Check stock availability by date range
-GET    /api/rentals/:id/reservations        → List reservations for a specific rental
-GET    /api/reservations/:id               → Get a single reservation
-DELETE /api/reservations/:id               → Emergency delete reservation + release stock
+Rental Created → Check Availability → Reserve Stock → Release on Cancel/Complete
 ```
+
+- Reservations prevent double-booking
+- Date-range based availability checking
+- Automatic stock release on cancellation or completion
+- Emergency reservation deletion available
+- Filterable by product variant
 
 ---
 
-### 09 · Users
+### 09 · User & Address Management
 
 ```
-GET    /api/users                           → List all users (Admin)
-GET    /api/users/:id                       → Get user info (Admin or self)
-POST   /api/auth/signUp                     → Create a new user
-PUT    /api/users/:id                       → Update user info (Admin or self)
-PATCH  /api/users/:id/password              → Change password (self only)
-PATCH  /api/users/:id/role                  → Change role (Admin only — last Admin is protected)
-DELETE /api/users/:id                       → Delete user (Admin only — cannot delete Admins)
-
-GET    /api/users/me/rentals                → Rental history for the current user
-GET    /api/users/:id/rentals               → Rental history for a specific user (Admin)
-
-GET    /api/addresses                       → List all addresses in the system (Admin)
-GET    /api/users/me/addresses              → Current user's addresses
-GET    /api/users/:id/addresses             → A user's addresses (Admin)
-POST   /api/users/me/addresses              → Add address for self
-POST   /api/users/:id/addresses             → Add address for a user (Admin)
-PUT    /api/users/me/addresses/:id          → Update own address
-PUT    /api/users/:id/addresses/:id         → Update a user's address (Admin)
-DELETE /api/users/me/addresses/:id          → Delete own address
-DELETE /api/users/:id/addresses/:id         → Delete a user's address (Admin)
+Create User → Add Addresses → Update Profile → Change Password → Manage Role (Admin only)
 ```
+
+- Users can manage own profile and addresses
+- Admins can manage all users and addresses
+- Role changes restricted (last admin protected)
+- Admin deletion restricted (cannot delete admins)
+- Password changes self-only
 
 ---
 
-### 10 · Admin Tools
+### 10 · Admin Dashboard & Reporting
 
 ```
-GET    /api/admin/dashboard           → System overview (stats, revenue, low-stock items < 3)
-GET    /api/admin/revenue             → Monthly revenue for the last 12 months
-GET    /api/admin/products/top        → Top N most-rented products
-GET    /api/admin/rentals/overdue     → Overdue rentals + days overdue + estimated penalties
-GET    /api/admin/audit               → Audit log entries (filter: action, userId)
-POST   /api/admin/audit               → Create audit log entry (internal)
-DELETE /api/admin/audit               → Delete old logs (specify beforeDate)
+Dashboard Overview → Revenue Charts → Top Products → Overdue Rentals → Audit Logs
 ```
+
+- System statistics (total rentals, revenue, active rentals)
+- Monthly revenue for last 12 months
+- Top N most-rented products
+- Overdue rentals with days overdue and estimated penalties
+- Low stock items (< 3 units)
+- Audit log filtering by action and user
+- Audit log cleanup by date
 
 ---
 
-## 🖥️ Frontend Pages
+## Caching Strategy
 
-| Page | Route | Description |
-|------|-------|-------------|
-| Sign In | `/` | Login (ADMIN only) |
-| Sign Up | `/signup` | Register |
-| Dashboard | `/dashboard` | Main overview |
-| Products | `/products` | Manage products, variants, images |
-| Categories | `/categories` | Manage categories |
-| Types | `/types` | Manage types |
-| Sizes & Colors | `/sizes-colors` | Manage sizes and colors (combined page) |
-| Rentals | `/rentals` | Manage all rentals |
-| Returns | `/returns` | Record returns + penalties |
-| Payments | `/payments` | Review and approve payment slips |
-| Deposits | `/deposits` | Manage security deposits |
-| Invoices | `/invoices` | Generate and view invoices |
-| Promotions | `/promotions` | Manage promotions |
-| Reservations | `/reservations` | View stock reservations + availability check |
-| Reports | `/reports` | Reports |
-| Audit Logs | `/audit` | Audit log |
-| Users | `/users` | Manage users |
+| Tag pattern | Scope | Revalidated on |
+| ----------- | ----- | -------------- |
+| None        | None  | None           |
+
+**Note:** This application does not implement caching. All data is fetched directly from the database.
+
+---
+
+## 🔐 Security
+
+- JWT authentication with 4-hour token expiration
+- bcrypt password hashing (12 rounds)
+- Role-based access control (RBAC) with ADMIN and USER roles
+- HTTP-only cookies for token storage
+- CORS configuration with credentials support
+- File upload validation (JPEG, PNG, WEBP only, max 5MB)
+- Manual input validation with regex patterns (email, phone, password)
+- SQL injection prevention via Prisma ORM
+- Admin-only route protection via middleware
+- Last admin protection (cannot delete or demote last admin)
+- Admin deletion restriction (cannot delete admin users)
+- Automatic token expiration handling
+- 401 automatic redirect to sign-in
 
 ---
 
@@ -410,48 +425,61 @@ DELETE /api/admin/audit               → Delete old logs (specify beforeDate)
 
 ```bash
 # Clone the repository
-git clone https://github.com/patsarun2545/<repo-name>.git
-cd <repo-name>
+git clone https://github.com/patsarun2545/Rental-Management-System-react-node-express-prisma-postgresql-bootstrap-5.git
+cd rental
 
 # Install backend dependencies
 cd api
 npm install
 
 # Install frontend dependencies
-cd ../frontend
+cd ../app
 npm install
 ```
 
 ### Environment Variables
 
-Create a `.env` file in the `api/` folder:
+Create a `.env` file in the `api/` directory:
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/dress_rental
-SECRET_KEY=your_jwt_secret_key
+DATABASE_URL=postgresql://user:password@localhost:5432/rental_db
+SECRET_KEY=your_jwt_secret_key_here
 CLIENT_URL=http://localhost:5173
 PORT=5000
 ```
 
-Create a `config.js` file in the `frontend/` folder:
+Create a `.env` file in the `app/` directory:
 
-```js
-export default {
-  apiServer: "http://localhost:5000",
-};
+```env
+VITE_API_SERVER=http://localhost:5000
 ```
 
-### Run
+### Database Setup
 
 ```bash
-# Backend
+# Navigate to api directory
 cd api
-npm run dev
 
-# Frontend
-cd frontend
+# Generate Prisma client
+npx prisma generate
+
+# Run database migrations
+npx prisma migrate dev
+```
+
+### Run Development Servers
+
+```bash
+# Backend (in api directory)
+cd api
+node server.js
+
+# Frontend (in app directory)
+cd app
 npm run dev
 ```
+
+The backend will run on `http://localhost:5000` and the frontend on `http://localhost:5173`.
 
 ---
 

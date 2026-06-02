@@ -2,27 +2,58 @@
 # dependencies
 # ======================
 node_modules/
+jspm_packages/
 
 # ======================
 # env
 # ======================
 .env
 .env.*
+!.env.example
 
 # ======================
 # build
 # ======================
+dist/
+dist-ssr/
 build/
+out/
+.next/
+.nuxt/
+.vuepress/dist/
 
 # ======================
 # logs
 # ======================
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ======================
+# test
+# ======================
+coverage/
+.nyc_output/
+
+# ======================
+# Vite
+# ======================
+.vite/
+.vite-cache/
 
 # ======================
 # OS
 # ======================
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # ======================
@@ -30,3 +61,25 @@ Thumbs.db
 # ======================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ======================
+# package managers
+# ======================
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ======================
+# misc
+# ======================
+*.txt
+*.tmp
+.cache/
+.parcel-cache/
+.eslintcache
